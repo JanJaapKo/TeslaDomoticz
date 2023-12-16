@@ -27,7 +27,7 @@
         <br/>
         This plugin will communicate with servers of Tesla and through them with your car.
         <br/>
-        Polling your car means draining 12V battery and worst case, an empty battery.
+        Polling your car means draining the battery and worst case, an empty battery.
         <br/><br/>
         <h3>ABRP (optional) </h3>
         This plugin will send current state of charge (SoC) and local temperature to your ABRP account to have the most accurate route planning, even on the road. <br/>
@@ -108,6 +108,8 @@ class TeslaPlugin:
         '''
         if "Maps icon" not in Images:
             Domoticz.Image("Maps icon.zip").Create()
+            
+        '''
         if (1 not in Devices):
             Domoticz.Device(Unit=1, Type=113, Subtype=0 , Switchtype=3 , Name="odometer").Create()
         if (2 not in Devices):
@@ -137,26 +139,27 @@ class TeslaPlugin:
             Domoticz.Device(Unit=13, Type=243, Subtype=31, Name="current speed").Create()
         if (14 not in Devices):
             Domoticz.Device(Unit=14, Type=243, Subtype=31, Name="Remaining charge time",  Options = {'Custom':'1;hrs'}).Create()
+        '''
         Domoticz.Log("Devices created.")
         if Parameters["Mode6"] == "1":
             Domoticz.Debugging(1)
             DumpConfigToLog()
-        p_email = Parameters["Username"]
-        p_password = Parameters["Password"]
-        p_vin = Parameters["Mode2"]
-        p_abrp_token = Parameters["Mode1"]
-        p_abrp_carmodel = Parameters["Mode2"]
-        p_homelocation = Settings["Location"]
-        if p_homelocation is None:
+        self.p_email = Parameters["Username"]
+        self.p_password = Parameters["Password"]
+        self.p_vin = Parameters["Mode2"]
+        self.p_abrp_token = Parameters["Mode1"]
+        self.p_abrp_carmodel = Parameters["Mode2"]
+        self.p_homelocation = Settings["Location"]
+        if self.p_homelocation is None:
             Domoticz.Log("Unable to parse coordinates")
-            p_homelocation = "52.0930241;4.3423724,17"
+            self.p_homelocation = "52.0930241;4.3423724,17"
             return False
         intervals = Parameters["Mode3"]
         for delim in ',;:': intervals = intervals.replace(delim, ' ')
         intervals=intervals.split(" ")
-        p_forcepollinterval = float(intervals[0])
-        p_charginginterval = float(intervals[1])
-        p_heartbeatinterval = float(intervals[2])
+        self.p_forcepollinterval = float(intervals[0])
+        self.p_charginginterval = float(intervals[1])
+        self.p_heartbeatinterval = float(intervals[2])
         
         initsuccess = True
         if initsuccess:
@@ -173,15 +176,15 @@ class TeslaPlugin:
     def onMessage(self, Connection, Data):
         return True
 
-    def onCommand(self, Unit, Command, Level, Hue):
-        logging.info("unit %s, Command %s Level %s Hue %s",Unit, Command, Level, Hue)
+    def onCommand(self, Device, Unit, Command, Level, Color):
+        logging.info("devcie %s, unit %s, Command %s Level %s Color %s",Device, Unit, Command, Level, Color)
         return True
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         return True
 
     def onHeartbeat(self):
-        global lastHeartbeatTime
+        return
         try:
             manualForcePoll = (Devices[9].nValue == 1)
             if manualForcePoll:
@@ -228,57 +231,36 @@ class TeslaPlugin:
         Domoticz.Log("onStop called")
         return True
 
-    def TurnOn(self):
-        return
-
-    def TurnOff(self):
-        return
-
-    def SyncDevices(self):
-        return
-
-    def ClearDevices(self):
-        return
-
-
 global _plugin
 _plugin = TeslaPlugin()
-
 
 def onStart():
     global _plugin
     _plugin.onStart()
 
-
 def onStop():
     global _plugin
     _plugin.onStop()
-
 
 def onConnect(Connection, Status, Description):
     global _plugin
     _plugin.onConnect(Connection, Status, Description)
 
-
 def onMessage(Connection, Data):
     global _plugin
     _plugin.onMessage(Connection, Data)
 
-
-def onCommand(Unit, Command, Level, Hue):
+def onCommand(Device, Unit, Command, Level, Color):
     global _plugin
-    _plugin.onCommand(Unit, Command, Level, Hue)
-
+    _plugin.onCommand(Device, Unit, Command, Level, Color)
 
 def onNotification(Name, Subject, Text, Status, Priority, Sound, ImageFile):
     global _plugin
     _plugin.onNotification(Name, Subject, Text, Status, Priority, Sound, ImageFile)
 
-
 def onDisconnect(Connection):
     global _plugin
     _plugin.onDisconnect(Connection)
-
 
 def onHeartbeat():
     global _plugin
@@ -296,10 +278,13 @@ def DumpConfigToLog():
     for x in Images:
         Domoticz.Debug("'" + x + "':'" + str(Images[x]) + "'")
     Domoticz.Debug("Device count: " + str(len(Devices)))
-    for x in Devices:
-        Domoticz.Debug("Device:           " + str(x) + " - " + str(Devices[x]))
+    for DeviceName in Devices:
+        Device = Devices[DeviceName]
+        Domoticz.Debug("Device:       '" + str(Device) + "'")
+        for UnitNo in Device.Units:
+            Unit = Device.Units[UnitNo]
+            Domoticz.Debug(" - Unit:       '" + str(Unit) + "'")
     return
-
 
 def UpdateDevice(Unit, nValue, sValue):
     # Make sure that the Domoticz device still exists (they can be deleted) before updating it
@@ -309,3 +294,50 @@ def UpdateDevice(Unit, nValue, sValue):
             Domoticz.Log("Update " + str(nValue) + ":'" + str(sValue) + "' (" + Devices[Unit].Name + ")")
     return
 
+def UpdateDeviceEx(Device, Unit, nValue, sValue, AlwaysUpdate=False):
+    # Make sure that the Domoticz device still exists (they can be deleted) before updating it
+    if (Device in Devices):
+        logging.debug("Updating device '"+Devices[Device].Units[Unit].Name+ "' with current sValue '"+Devices[Device].Units[Unit].sValue+"' to '" +sValue+"'")
+        if (Devices[Device].Units[Unit].nValue != nValue) or (Devices[Device].Units[Unit].sValue != sValue) or AlwaysUpdate:
+            #try:
+                Devices[Device].Units[Unit].nValue = nValue
+                Devices[Device].Units[Unit].sValue = sValue
+                Devices[Device].Units[Unit].Update()
+                
+                logging.debug("Update "+str(nValue)+":'"+str(sValue)+"' ("+Devices[Device].Units[Unit].Name+")")
+            # except:
+                # Domoticz.Error("Update of device failed: "+str(Unit)+"!")
+                # logging.error("Update of device failed: "+str(Unit)+"!")
+    return
+
+
+# Configuration Helpers
+def getConfigItem(Key=None, Default={}):
+   Value = Default
+   try:
+       Config = Domoticz.Configuration()
+       if (Key != None):
+           Value = Config[Key] # only return requested key if there was one
+       else:
+           Value = Config      # return the whole configuration if no key
+   except KeyError:
+       Value = Default
+   except Exception as inst:
+       Domoticz.Error("Domoticz.Configuration read failed: '"+str(inst)+"'")
+   return Value
+   
+def setConfigItem(Key=None, Value=None):
+    Config = {}
+    if type(Value) not in (str, int, float, bool, bytes, bytearray, list, dict):
+        Domoticz.Error("A value is specified of a not allowed type: '" + str(type(Value)) + "'")
+        return Config
+    try:
+       Config = Domoticz.Configuration()
+       if (Key != None):
+           Config[Key] = Value
+       else:
+           Config = Value  # set whole configuration if no key specified
+       Config = Domoticz.Configuration(Config)
+    except Exception as inst:
+       Domoticz.Error("Domoticz.Configuration operation failed: '"+str(inst)+"'")
+    return Config
