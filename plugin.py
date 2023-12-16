@@ -29,7 +29,7 @@
         <br/>
         Polling your car means draining 12V battery and worst case, an empty battery.
         <br/><br/>
-        <h3>ABRP (optional) and weather (even more optional) </h3>
+        <h3>ABRP (optional) </h3>
         This plugin will send current state of charge (SoC) and local temperature to your ABRP account to have the most accurate route planning, even on the road. <br/>
         Your ABRP token can be found here: Settings - Car model, 
 	Click on settings next to you car, 
@@ -79,18 +79,18 @@ from bluvo_main import initialise, pollcar, setcharge, lockdoors, setairco
 class TeslaPlugin:
 
     def onStart(self):
-        global lastHeartbeatTime, heartbeatinterval
         lastHeartbeatTime = 0
+        self.log_filename = "tesla_"+Parameters["Name"]+".log"
         if Parameters["Mode6"] == "1":
             Domoticz.Debugging(1)
             DumpConfigToLog()
             Domoticz.Log('Debug mode')
-            logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename='bluvo.log',level=logging.DEBUG)
+            logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename=self.log_filename,level=logging.DEBUG)
         else:
             Domoticz.Debugging(0)
-            if Parameters["Mode6"] == "2": logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename='bluvo.log', level=logging.INFO)
-            elif Parameters["Mode6"] == "3": logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename='bluvo.log', level=logging.WARNING)
-            else: logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename='bluvo.log', level=logging.ERROR)
+            if Parameters["Mode6"] == "2": logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename=self.log_filename, level=logging.INFO)
+            elif Parameters["Mode6"] == "3": logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename=self.log_filename, level=logging.WARNING)
+            else: logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename=self.log_filename, level=logging.ERROR)
 
         logging.info('started plugin')
         '''
@@ -138,18 +138,14 @@ class TeslaPlugin:
         if (14 not in Devices):
             Domoticz.Device(Unit=14, Type=243, Subtype=31, Name="Remaining charge time",  Options = {'Custom':'1;hrs'}).Create()
         Domoticz.Log("Devices created.")
-        if Parameters["SerialPort"] == "1":
+        if Parameters["Mode6"] == "1":
             Domoticz.Debugging(1)
             DumpConfigToLog()
         p_email = Parameters["Username"]
         p_password = Parameters["Password"]
-        p_pin = Parameters["Port"]
-        p_vin = Parameters["Mode6"]
+        p_vin = Parameters["Mode2"]
         p_abrp_token = Parameters["Mode1"]
         p_abrp_carmodel = Parameters["Mode2"]
-        # TODO see what weather API is running and get the data ..
-        p_WeatherApiKey = Parameters["Mode4"]
-        p_WeatherProvider = Parameters["Mode5"]
         p_homelocation = Settings["Location"]
         if p_homelocation is None:
             Domoticz.Log("Unable to parse coordinates")
@@ -161,7 +157,8 @@ class TeslaPlugin:
         p_forcepollinterval = float(intervals[0])
         p_charginginterval = float(intervals[1])
         p_heartbeatinterval = float(intervals[2])
-        heartbeatinterval, initsuccess = initialise(p_email, p_password, p_pin, p_vin, p_abrp_token, p_abrp_carmodel, p_WeatherApiKey, p_WeatherProvider, p_homelocation, p_forcepollinterval, p_charginginterval, p_heartbeatinterval)
+        
+        initsuccess = True
         if initsuccess:
                 Domoticz.Heartbeat(15)
         else:
@@ -178,18 +175,6 @@ class TeslaPlugin:
 
     def onCommand(self, Unit, Command, Level, Hue):
         logging.info("unit %s, Command %s Level %s Hue %s",Unit, Command, Level, Hue)
-        if Unit==3:
-            setcharge(Command)
-            UpdateDevice(3, 0 if Command == "Off" else 1, 0 if Command == "Off" else 1)
-        if Unit==9: UpdateDevice(9, 0 if Command=="Off" else 1, 0 if Command=="Off" else 1)
-        if Unit==10:
-            lockdoors(Command)
-            UpdateDevice(10, 0 if Command=="Off" else 1 , 0 if Command=="Off" else 1)
-        if Unit==11:
-            climate = "off" if Level < 17 else "on"
-            setairco(climate,Level)
-            pluginName = Devices[11].Name.split(":")[0]
-            Devices[11].Update(nValue=0, sValue=str(Level), Name=pluginName + ": " + climate)
         return True
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
@@ -299,7 +284,6 @@ def onHeartbeat():
     global _plugin
     _plugin.onHeartbeat()
 
-
 # Generic helper functions
 def DumpConfigToLog():
     for x in Parameters:
@@ -314,12 +298,6 @@ def DumpConfigToLog():
     Domoticz.Debug("Device count: " + str(len(Devices)))
     for x in Devices:
         Domoticz.Debug("Device:           " + str(x) + " - " + str(Devices[x]))
-        # Domoticz.Debug("Device ID:       '" + str(Devices[x].ID) + "'")
-        # Domoticz.Debug("Device Name:     '" + Devices[x].Name + "'")
-        # Domoticz.Debug("Device nValue:    " + str(Devices[x].nValue))
-        # Domoticz.Debug("Device sValue:   '" + Devices[x].sValue + "'")
-        # Domoticz.Debug("Device LastLevel: " + str(Devices[x].LastLevel))
-        # Domoticz.Debug("Device Image:     " + str(Devices[x].Image))
     return
 
 
@@ -331,8 +309,3 @@ def UpdateDevice(Unit, nValue, sValue):
             Domoticz.Log("Update " + str(nValue) + ":'" + str(sValue) + "' (" + Devices[Unit].Name + ")")
     return
 
-
-#TODO pushbuttons for lock/unlock start/stop charge start/stop ac start/stop heat
-#TODO nicer buttons
-#TODO button to change start and heat schedule
-#TODO script, depending on outside temperature, to preheat the car depending on first destination of the day and the driving time to it
