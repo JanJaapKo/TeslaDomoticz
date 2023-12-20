@@ -10,3 +10,4 @@ ehthumbs.db
 Thumbs.db
 .idea/.name
 *.pyc
+cache.json
