@@ -4,8 +4,9 @@ This plugin integrates the [TeslaPy](https://github.com/tdorssers/TeslaPy) libra
 This plugin is (at this moment) only tested with a 2023 Model Y. I assume other vehicles will work too. The library supports all Tesla products, but this plugin is (for now) only implementing vehicles.
 
 ## Current status:
-Basic version working, retreives only battery status
-Be aware that breaking cahnges may be introduced
+Basic version working, retreives only battery status.
+
+Be aware that breaking changes may be introduced!!
 
 ## Installation
 
