@@ -24,8 +24,10 @@ sudo python3 -m pip install TeslaPy
 3. Restart Domoticz:
  ```sudo systemctl restart domoticz```
 4. run tesla_prepare to authenticate. Edit the file to hold the email adress registered to your Tesla account, and then:
- ```cd TeslaDomoticz
- python3 tesla_prepare```
+ ```
+cd TeslaDomoticz
+ python3 tesla_prepare
+```
  Follow instructions on the command line. Authentication is sussefull when it reports the name of your vehicle
  5. Add the plugin to Domoticz on the hardware page y providing the required configuration attributes
  
