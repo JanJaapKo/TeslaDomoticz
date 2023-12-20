@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.1.0">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.2.0">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -51,8 +51,6 @@
     <params>
         <param field="Username" label="Email-address"           width="200px" required="true"  default="john.doe@gmail.com"                  />
         <param field="Password" label="Password"                width="200px" required="true"  default="myLittleSecret" password="true"      />
-        <param field="Port"     label="Pin"                     width=" 80px" required="true"  default="1234" password="true"                />
-        <param field="Mode2"    label="VIN"                     width="150px" required="false" default="KNACC12ABC4567890"/>
         <param field="Mode1"    label="ABRP token"              width="300px" required="false" default="1234ab56-7cde-890f-a12b-3cde45678901"/>
 	    <param field="Mode3"    label="Intervals (in minutes: force; charging; heartbeat)" width="100px"  required="true" default="60;30;10"                  />
         <param field="Mode6" label="Log level" width="75px">
@@ -70,29 +68,31 @@
 
 try:
     import DomoticzEx as Domoticz
+except ImportError:
+    #import fake domoticz modules and setup fake domoticz instance to enable unit testing
+    from fakeDomoticz import *
+    from fakeDomoticz import Domoticz
+    Domoticz = Domoticz()
 import logging
 import random
 from datetime import datetime
-from bluvo_main import initialise, pollcar, setcharge, lockdoors, setairco
-
+import TeslaDevice
 
 class TeslaPlugin:
 
     def onStart(self):
-        lastHeartbeatTime = 0
         self.log_filename = "tesla_"+Parameters["Name"]+".log"
         if Parameters["Mode6"] == "1":
-            Domoticz.Debugging(1)
+            Domoticz.Debugging(2)
             DumpConfigToLog()
             Domoticz.Log('Debug mode')
             logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename=self.log_filename,level=logging.DEBUG)
         else:
-            Domoticz.Debugging(0)
             if Parameters["Mode6"] == "2": logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename=self.log_filename, level=logging.INFO)
             elif Parameters["Mode6"] == "3": logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename=self.log_filename, level=logging.WARNING)
             else: logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename=self.log_filename, level=logging.ERROR)
 
-        logging.info('started plugin')
+        logging.info("starting plugin version "+Parameters["Version"])
         '''
         # add custom images
         CLOSED_ICON = "Closed"
@@ -109,46 +109,13 @@ class TeslaPlugin:
         if "Maps icon" not in Images:
             Domoticz.Image("Maps icon.zip").Create()
             
-        '''
-        if (1 not in Devices):
-            Domoticz.Device(Unit=1, Type=113, Subtype=0 , Switchtype=3 , Name="odometer").Create()
-        if (2 not in Devices):
-            Domoticz.Device(Unit=2, Type=243, Subtype=31, Switchtype=0 , Name="range").Create()
-        if (3 not in Devices):
-            Domoticz.Device(Unit=3, Type=244, Subtype=73, Switchtype=0 , Name="charging").Create()
-        if (4 not in Devices):
-            Domoticz.Device(Unit=4, TypeName="Percentage"              , Name="Battery percentage").Create()
-        if (5 not in Devices):
-            Domoticz.Device(Unit=5, TypeName="Percentage"              , Name="Battery 12v").Create()
-        if (6 not in Devices):
-            Domoticz.Device(Unit=6, Type=243, Subtype=31, Switchtype=0 , Name="status 12v").Create()
-        if (7 not in Devices):
-            Domoticz.Device(Unit=7, Type=244, Subtype=73, Switchtype=11, Name="tailgate").Create()
-        if (8 not in Devices):
-            Domoticz.Device(Unit=8, Type=243, Subtype=19, Image=Images["Maps icon"].ID, Name="distance from home: 0").Create()
-            Devices[8].Update(nValue=0, sValue="Location update needed")
-        if (9 not in Devices):
-            Domoticz.Device(Unit=9, Type=244, Subtype=73, Switchtype=0 , Name="force status update").Create()
-        if (10 not in Devices):
-            Domoticz.Device(Unit=10, Type=244, Subtype=73, Switchtype=19 , Name="doors").Create()
-        if (11 not in Devices):
-            Domoticz.Device(Unit=11, Type=242, Subtype=1,                  Name="airco: off").Create()
-        if (12 not in Devices):
-            Domoticz.Device(Unit=12, Type=244, Subtype=73, Switchtype=11, Name="hood").Create()
-        if (13 not in Devices):
-            Domoticz.Device(Unit=13, Type=243, Subtype=31, Name="current speed").Create()
-        if (14 not in Devices):
-            Domoticz.Device(Unit=14, Type=243, Subtype=31, Name="Remaining charge time",  Options = {'Custom':'1;hrs'}).Create()
-        '''
-        Domoticz.Log("Devices created.")
         if Parameters["Mode6"] == "1":
             Domoticz.Debugging(1)
             DumpConfigToLog()
         self.p_email = Parameters["Username"]
-        self.p_password = Parameters["Password"]
-        self.p_vin = Parameters["Mode2"]
+        #self.p_password = Parameters["Password"] # TODO: check if not needed elsewhere
         self.p_abrp_token = Parameters["Mode1"]
-        self.p_abrp_carmodel = Parameters["Mode2"]
+        #self.p_abrp_carmodel = Parameters["Mode2"] # TODO"filter this info from Tesla API
         self.p_homelocation = Settings["Location"]
         if self.p_homelocation is None:
             Domoticz.Log("Unable to parse coordinates")
@@ -161,11 +128,14 @@ class TeslaPlugin:
         self.p_charginginterval = float(intervals[1])
         self.p_heartbeatinterval = float(intervals[2])
         
-        initsuccess = True
+        TeslaServer = TeslaDevice.TeslaAnyDevice(self.p_email)
+        
+        initsuccess = TeslaServer.initialize()
         if initsuccess:
-                Domoticz.Heartbeat(15)
+                logging.info("Initialisation succeeded")
         else:
-                Domoticz.Log ("Initialisation failed")
+                Domoticz.Error("Initialisation failed, run tesla_prepare first")
+                logging.error("Initialisation failed, run tesla_prepare first")
                 return False
         return True
 
@@ -231,6 +201,46 @@ class TeslaPlugin:
         Domoticz.Log("onStop called")
         return True
 
+
+    def createVehicleDevices(self, deviceId):
+        if (4 not in Devices):
+            Domoticz.Unit(Unit=4, TypeName="Percentage", Name="Battery percentage" + str(deviceId), DeviceID=deviceId).Create()
+
+            Domoticz.Unit(Name="Inverter temperature (SN: " + serialNumber + ")", DeviceID=serialNumber,
+                            Unit=(self.inverterTemperatureUnit), Type=80, Subtype=5).Create()
+
+        '''
+        if (1 not in Devices):
+            Domoticz.Device(Unit=1, Type=113, Subtype=0 , Switchtype=3 , Name="odometer").Create()
+        if (2 not in Devices):
+            Domoticz.Device(Unit=2, Type=243, Subtype=31, Switchtype=0 , Name="range").Create()
+        if (3 not in Devices):
+            Domoticz.Device(Unit=3, Type=244, Subtype=73, Switchtype=0 , Name="charging").Create()
+        if (5 not in Devices):
+            Domoticz.Device(Unit=5, TypeName="Percentage"              , Name="Battery 12v").Create()
+        if (6 not in Devices):
+            Domoticz.Device(Unit=6, Type=243, Subtype=31, Switchtype=0 , Name="status 12v").Create()
+        if (7 not in Devices):
+            Domoticz.Device(Unit=7, Type=244, Subtype=73, Switchtype=11, Name="tailgate").Create()
+        if (8 not in Devices):
+            Domoticz.Device(Unit=8, Type=243, Subtype=19, Image=Images["Maps icon"].ID, Name="distance from home: 0").Create()
+            Devices[8].Update(nValue=0, sValue="Location update needed")
+        if (9 not in Devices):
+            Domoticz.Device(Unit=9, Type=244, Subtype=73, Switchtype=0 , Name="force status update").Create()
+        if (10 not in Devices):
+            Domoticz.Device(Unit=10, Type=244, Subtype=73, Switchtype=19 , Name="doors").Create()
+        if (11 not in Devices):
+            Domoticz.Device(Unit=11, Type=242, Subtype=1,                  Name="airco: off").Create()
+        if (12 not in Devices):
+            Domoticz.Device(Unit=12, Type=244, Subtype=73, Switchtype=11, Name="hood").Create()
+        if (13 not in Devices):
+            Domoticz.Device(Unit=13, Type=243, Subtype=31, Name="current speed").Create()
+        if (14 not in Devices):
+            Domoticz.Device(Unit=14, Type=243, Subtype=31, Name="Remaining charge time",  Options = {'Custom':'1;hrs'}).Create()
+        '''
+        logging.info("Devices created.")
+        return True
+    
 global _plugin
 _plugin = TeslaPlugin()
 
@@ -271,9 +281,9 @@ def DumpConfigToLog():
     for x in Parameters:
         if Parameters[x] != "":
             Domoticz.Debug("'" + x + "':'" + str(Parameters[x]) + "'")
-    Domoticz.Debug("Settings count: " + str(len(Settings)))
-    for x in Settings:
-        Domoticz.Debug("'" + x + "':'" + str(Settings[x]) + "'")
+    #Domoticz.Debug("Settings count: " + str(len(Settings)))
+    #for x in Settings:
+    #    Domoticz.Debug("'" + x + "':'" + str(Settings[x]) + "'")
     Domoticz.Debug("Image count: " + str(len(Images)))
     for x in Images:
         Domoticz.Debug("'" + x + "':'" + str(Images[x]) + "'")
