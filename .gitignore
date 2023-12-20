@@ -11,3 +11,4 @@ Thumbs.db
 .idea/.name
 *.pyc
 cache.json
+tesla_prepare.py
