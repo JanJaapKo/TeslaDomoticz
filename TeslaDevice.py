@@ -2,27 +2,34 @@ import logging
 import teslapy
 import os
 
+VEHICLE_TYPE = {
+    "model3": 'Model Y',
+    "models": 'Model Y',
+    "modelx": 'Model Y',
+    "modely": 'Model Y',
+}
+
 class TeslaAnyDevice():
     """generic class to interface device data with Tesla server"""
     def __init__(self,email):
         self.email = email
+        self.initialized = False
         
     def initialize(self):
-        """initialize the connection if no cache file found"""
-        logging.info("current working dir: " + os.getcwd())
-        try:
-            cacheFile = open(os.getcwd() + "/plugins/TeslaDomoticz/cache.json")
-        except FileNotFoundError:
-            logging.info("cache file not found")
+        """initialize the connection if when cache file found"""
+        cache_file = self._get_cachefile_location("cache.json")
+        if cache_file == "":
             return False
-            
-        logging.info("cache file found, continue initialize")
-        cacheFile.close()
-        self.tesla = teslapy.Tesla(self.email, cache_file = self._get_cachefile_location("cache.json"))
+        self.tesla = teslapy.Tesla(self.email, cache_file = cache_file)
+        self.initialized = True
         return True
         
     def get_devices(self):
-        return
+        if self.initialized:
+            vehicles = self.tesla.vehicle_list()
+            return vehicles
+        else:
+            return False
 
     def _get_cachefile_location(self, filename):
         """search for the cache file as created by tesla_prepare and return its file path"""

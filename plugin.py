@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.2.0">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.3.0">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -52,7 +52,9 @@
         <param field="Username" label="Email-address"           width="200px" required="true"  default="john.doe@gmail.com"                  />
         <param field="Password" label="Password"                width="200px" required="true"  default="myLittleSecret" password="true"      />
         <param field="Mode1"    label="ABRP token"              width="300px" required="false" default="1234ab56-7cde-890f-a12b-3cde45678901"/>
-	    <param field="Mode3"    label="Intervals (in minutes: force; charging; heartbeat)" width="100px"  required="true" default="60;30;10"                  />
+	    <param field="Mode3"    label="Intervals (in minutes: force; charging; heartbeat)" width="100px"  required="true" default="60;30;10">
+            <description>supply 3 values (separated by ';'): forced update; charging update; heartbeat</description>
+        </param>
         <param field="Mode6" label="Log level" width="75px">
             <options>
                 <option label="1. Debug" value="1"/>
@@ -82,6 +84,7 @@ class TeslaPlugin:
 
     def onStart(self):
         self.log_filename = "tesla_"+Parameters["Name"]+".log"
+        Domoticz.Log('Plugin starting')
         if Parameters["Mode6"] == "1":
             Domoticz.Debugging(2)
             DumpConfigToLog()
@@ -93,6 +96,10 @@ class TeslaPlugin:
             else: logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename=self.log_filename, level=logging.ERROR)
 
         logging.info("starting plugin version "+Parameters["Version"])
+
+        self.lastHeartbeatTime = 0
+        self.runCounter = 6
+
         '''
         # add custom images
         CLOSED_ICON = "Closed"
@@ -124,21 +131,34 @@ class TeslaPlugin:
         intervals = Parameters["Mode3"]
         for delim in ',;:': intervals = intervals.replace(delim, ' ')
         intervals=intervals.split(" ")
-        self.p_forcepollinterval = float(intervals[0])
-        self.p_charginginterval = float(intervals[1])
-        self.p_heartbeatinterval = float(intervals[2])
+        self.forcepollinterval = float(intervals[0])
+        self.charginginterval = float(intervals[1])
+        self.heartbeatinterval = float(intervals[2])
+        if self.heartbeatinterval == "":
+            self.heartbeatinterval = float(120)
+        else:
+            self.heartbeatinterval = float(self.heartbeatinterval) * 60
         
         TeslaServer = TeslaDevice.TeslaAnyDevice(self.p_email)
         
         initsuccess = TeslaServer.initialize()
         if initsuccess:
-                logging.info("Initialisation succeeded")
+            logging.info("Initialisation succeeded")
         else:
-                Domoticz.Error("Initialisation failed, run tesla_prepare first")
-                logging.error("Initialisation failed, run tesla_prepare first")
-                return False
-        return True
+            Domoticz.Error("Initialisation failed, run tesla_prepare first")
+            logging.error("Initialisation failed, run tesla_prepare first")
+            return False
 
+        self.vehicle_list = TeslaServer.get_devices()
+        logging.info("Found " + str(len(self.vehicle_list)) + " vehicles")
+        for vehicle in self.vehicle_list:
+            logging.info("vehicle " + TeslaDevice.VEHICLE_TYPE[vehicle["vehicle_config"]["car_type"]] + " found, VIN: " + vehicle['vin'] + " called '" + vehicle['display_name'] + "'")
+            self.createVehicleDevices(vehicle)
+            vehicle.sync_wake_up()
+            self.updateDevices(vehicle.get_vehicle_data())
+
+        Domoticz.Log('Plugin starting up done')
+        return True
 
     def onConnect(self, Connection, Status, Description):
         return True
@@ -154,16 +174,24 @@ class TeslaPlugin:
         return True
 
     def onHeartbeat(self):
-        return
-        try:
-            manualForcePoll = (Devices[9].nValue == 1)
+        self.runCounter = self.runCounter - 1
+        if self.runCounter <= 0:
+            logging.debug("Polling unit")
+            self.runCounter = 6 #check for connection status not every heartbeat         
+
+            #try:
+            #manualForcePoll = (Devices[9].nValue == 1)
+            manualForcePoll = False
             if manualForcePoll:
-                lastHeartbeatTime = 0
-                UpdateDevice(9, 0, 0)
+                self.lastHeartbeatTime = 0
+                UpdateDeviceEx(9, 0, 0)
             # at night (between 2300 and 700) only one in 2 polls is done
             heartbeatmultiplier = (1 if 7 <= datetime.now().hour <= 22 else 2)
-            if lastHeartbeatTime == 0 or float((datetime.now() - lastHeartbeatTime).total_seconds()) > (random.uniform(0.75,1.5)*(heartbeatmultiplier * heartbeatinterval)):
+            logging.debug("onHeartbeat: self.lastHeartbeatTime = " + str(self.lastHeartbeatTime))
+            if self.lastHeartbeatTime == 0 or float((datetime.now() - self.lastHeartbeatTime).total_seconds()) > (random.uniform(0.75,1.5)*(heartbeatmultiplier * self.heartbeatinterval)):
+                logging.debug("polling vehicle")
                 lastHeartbeatTime = datetime.now()
+                '''
                 updated, parsedStatus, afstand, googlelocation = pollcar(manualForcePoll)
                 pluginName = Devices[11].Name.split("-")[0]
                 googlelocation = '<a target="_blank" rel="noopener noreferrer" ' + googlelocation + pluginName + " - location</a> "
@@ -189,8 +217,15 @@ class TeslaPlugin:
                     climate = pluginName + ": on" if (parsedStatus['climateactive'] == True) else pluginName + ": off"
                     Level = parsedStatus['temperature']
                     Devices[11].Update(nValue=0, sValue=str(Level), Name= climate)
-        except:
-            logging.debug("heartbeat wasnt set yet")
+            '''
+
+                for vehicle in self.vehicle_list:
+                    logging.info(" Updating vehicle " + TeslaDevice.VEHICLE_TYPE[vehicle["vehicle_config"]["car_type"]] + " VIN: " + vehicle['vin'] + " called '" + vehicle['display_name'] + "'")
+                    vehicle.sync_wake_up()
+                    self.updateDevices(vehicle.get_vehicle_data())
+            
+    #        except:
+    #            logging.debug("heartbeat wasnt set yet")
         return
 
     def onDisconnect(self, Connection):
@@ -198,18 +233,19 @@ class TeslaPlugin:
         return
 
     def onStop(self):
+        logging.info("stopping plugin")
         Domoticz.Log("onStop called")
         return True
 
-
-    def createVehicleDevices(self, deviceId):
-        if (4 not in Devices):
-            Domoticz.Unit(Unit=4, TypeName="Percentage", Name="Battery percentage" + str(deviceId), DeviceID=deviceId).Create()
-
-            Domoticz.Unit(Name="Inverter temperature (SN: " + serialNumber + ")", DeviceID=serialNumber,
-                            Unit=(self.inverterTemperatureUnit), Type=80, Subtype=5).Create()
+    def createVehicleDevices(self, device):
+        deviceId = device['vin']
+        if (4 not in Devices[deviceId].Units):
+            Domoticz.Unit(Unit=4, TypeName="Percentage", Name="Battery percentage " + str(deviceId), DeviceID=deviceId).Create()
 
         '''
+            Domoticz.Unit(Name="Inverter temperature (SN: " + deviceId + ")", DeviceID=deviceId,
+                            Unit=(self.inverterTemperatureUnit), Type=80, Subtype=5).Create()
+
         if (1 not in Devices):
             Domoticz.Device(Unit=1, Type=113, Subtype=0 , Switchtype=3 , Name="odometer").Create()
         if (2 not in Devices):
@@ -241,6 +277,15 @@ class TeslaPlugin:
         logging.info("Devices created.")
         return True
     
+    def updateDevices(self,deviceStatus):
+        deviceId = deviceStatus['vin']
+        logging.debug("deviceStatus['charge_state']['battery_level'] = " + str(deviceStatus['charge_state']['battery_level']))
+        if (deviceStatus['charge_state']['battery_level']>0):    #avoid to set soc=0% 
+            UpdateDeviceEx(deviceId, 4, deviceStatus['charge_state']['battery_level'], str(deviceStatus['charge_state']['battery_level']))  # soc
+
+        logging.info("Devices updated.")
+        return True
+        
 global _plugin
 _plugin = TeslaPlugin()
 
@@ -307,14 +352,14 @@ def UpdateDevice(Unit, nValue, sValue):
 def UpdateDeviceEx(Device, Unit, nValue, sValue, AlwaysUpdate=False):
     # Make sure that the Domoticz device still exists (they can be deleted) before updating it
     if (Device in Devices):
-        logging.debug("Updating device '"+Devices[Device].Units[Unit].Name+ "' with current sValue '"+Devices[Device].Units[Unit].sValue+"' to '" +sValue+"'")
         if (Devices[Device].Units[Unit].nValue != nValue) or (Devices[Device].Units[Unit].sValue != sValue) or AlwaysUpdate:
+                logging.info("Updating device '"+Devices[Device].Units[Unit].Name+ "' with current sValue '"+Devices[Device].Units[Unit].sValue+"' to '" +sValue+"'")
             #try:
                 Devices[Device].Units[Unit].nValue = nValue
                 Devices[Device].Units[Unit].sValue = sValue
                 Devices[Device].Units[Unit].Update()
                 
-                logging.debug("Update "+str(nValue)+":'"+str(sValue)+"' ("+Devices[Device].Units[Unit].Name+")")
+                #logging.debug("Update "+str(nValue)+":'"+str(sValue)+"' ("+Devices[Device].Units[Unit].Name+")")
             # except:
                 # Domoticz.Error("Update of device failed: "+str(Unit)+"!")
                 # logging.error("Update of device failed: "+str(Unit)+"!")
