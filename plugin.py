@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.3.0">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.4.0">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -187,10 +187,10 @@ class TeslaPlugin:
                 UpdateDeviceEx(9, 0, 0)
             # at night (between 2300 and 700) only one in 2 polls is done
             heartbeatmultiplier = (1 if 7 <= datetime.now().hour <= 22 else 2)
-            logging.debug("onHeartbeat: self.lastHeartbeatTime = " + str(self.lastHeartbeatTime))
+            logging.debug("onHeartbeat: self.lastHeartbeatTime = " + str(self.lastHeartbeatTime) + " with seconds interval = " + str(heartbeatmultiplier * self.heartbeatinterval))
             if self.lastHeartbeatTime == 0 or float((datetime.now() - self.lastHeartbeatTime).total_seconds()) > (random.uniform(0.75,1.5)*(heartbeatmultiplier * self.heartbeatinterval)):
                 logging.debug("polling vehicle")
-                lastHeartbeatTime = datetime.now()
+                self.lastHeartbeatTime = datetime.now()
                 '''
                 updated, parsedStatus, afstand, googlelocation = pollcar(manualForcePoll)
                 pluginName = Devices[11].Name.split("-")[0]
