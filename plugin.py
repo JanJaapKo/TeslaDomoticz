@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.4.1">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.4.2">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -99,7 +99,7 @@ class TeslaPlugin:
         logging.info("starting plugin version "+Parameters["Version"])
 
         self.lastHeartbeatTime = 0
-        self.runCounter = 6
+        self.runCounter = 10
 
         '''
         # add custom images
@@ -139,6 +139,7 @@ class TeslaPlugin:
             self.heartbeatinterval = float(120)
         else:
             self.heartbeatinterval = float(self.heartbeatinterval) * 60
+        self.current_interval = self.heartbeatinterval
         
         TeslaServer = TeslaDevice.TeslaServer(self.p_email)
         
@@ -156,9 +157,10 @@ class TeslaPlugin:
         for vehicle in self.vehicle_list:
             logging.info("vehicle " + TeslaDevice.VEHICLE_TYPE[vehicle["vehicle_config"]["car_type"]] + " found, VIN: " + vehicle['vin'] + " called '" + vehicle['display_name'] + "'")
             self.createVehicleDevices(vehicle)
-            vehicle.sync_wake_up()
-            self.updateDevices(vehicle.get_vehicle_data())
-            self.vehicle_dict[vehicle['vin']] = TeslaVehicle.teslaVehicle(vehicle.get_vehicle_data())
+            self.vehicle_dict[vehicle['vin']] = TeslaVehicle.teslaVehicle(vehicle)
+            self.vehicle_dict[vehicle['vin']].vehicle.sync_wake_up()
+            self.updateDevices(self.vehicle_dict[vehicle['vin']].get_vehicle_data())
+            logging.info("the vehicle called " + self.vehicle_dict[vehicle['vin']].name + " has charging state " + self.vehicle_dict[vehicle['vin']].charging)
 
         Domoticz.Log('Plugin starting up done')
         return True
@@ -180,7 +182,7 @@ class TeslaPlugin:
         self.runCounter = self.runCounter - 1
         if self.runCounter <= 0:
             logging.debug("Polling unit")
-            self.runCounter = 6 #check for connection status not every heartbeat         
+            self.runCounter = 10 #check for connection status not every heartbeat         
 
             #try:
             #manualForcePoll = (Devices[9].nValue == 1)
@@ -190,9 +192,9 @@ class TeslaPlugin:
                 UpdateDeviceEx(9, 0, 0)
             # at night (between 2300 and 700) only one in 2 polls is done
             heartbeatmultiplier = (1 if 7 <= datetime.now().hour <= 22 else 2)
-            current_interval = self.heartbeatinterval
-            logging.debug("onHeartbeat: self.lastHeartbeatTime = " + str(self.lastHeartbeatTime) + " with seconds interval = " + str(heartbeatmultiplier * self.heartbeatinterval))
-            if self.lastHeartbeatTime == 0 or float((datetime.now() - self.lastHeartbeatTime).total_seconds()) > (random.uniform(0.75,1.5)*(heartbeatmultiplier * self.heartbeatinterval)):
+            self.current_interval = self.heartbeatinterval
+            logging.debug("onHeartbeat: self.lastHeartbeatTime = " + str(self.lastHeartbeatTime) + " with seconds interval = " + str(heartbeatmultiplier * self.current_interval))
+            if self.lastHeartbeatTime == 0 or float((datetime.now() - self.lastHeartbeatTime).total_seconds()) > (random.uniform(0.75,1.5)*(heartbeatmultiplier * self.current_interval)):
                 logging.debug("polling vehicle")
                 self.lastHeartbeatTime = datetime.now()
                 '''
@@ -223,9 +225,9 @@ class TeslaPlugin:
                     Devices[11].Update(nValue=0, sValue=str(Level), Name= climate)
             '''
 
-                for vehicle in self.vehicle_list:
-                    logging.info(" Updating vehicle " + TeslaDevice.VEHICLE_TYPE[vehicle["vehicle_config"]["car_type"]] + " VIN: " + vehicle['vin'] + " called '" + vehicle['display_name'] + "'")
-                    vehicle.sync_wake_up()
+                for vehicle in self.vehicle_dict:
+                    logging.info(" Updating vehicle " + vehicle.car_type + " VIN: " + vehicle.vin + " called '" + vehicle.name + "'")
+                    vehicle.vehicle.sync_wake_up()
                     self.updateDevices(vehicle.get_vehicle_data())
             
     #        except:
@@ -283,7 +285,6 @@ class TeslaPlugin:
     
     def updateDevices(self,deviceStatus):
         deviceId = deviceStatus['vin']
-        logging.debug("deviceStatus['charge_state']['battery_level'] = " + str(deviceStatus['charge_state']['battery_level']))
         if (deviceStatus['charge_state']['battery_level']>0):    #avoid to set soc=0% 
             UpdateDeviceEx(deviceId, 4, deviceStatus['charge_state']['battery_level'], str(deviceStatus['charge_state']['battery_level']))  # soc
 
