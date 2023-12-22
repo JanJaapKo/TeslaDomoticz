@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.4.0">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.4.1">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -39,8 +39,8 @@
         <br/>
         If you omit your ABRP token, then no information will be sent to ABRP.
         <br/>
-        <h3>12V auxiliary battery</h3>
-        If you poll the car all the time, when not driving or not charging, your 12V battery may be drained, depending on the settings of your car to charge the auxiliary battery.
+        <h3>Battery</h3>
+        If you poll the car all the time, when not driving or not charging, your battery may be drained, depending on the settings of your car to charge the auxiliary battery.
         There is no way for the plugin to determine if you start driving or charging other than polling the car. To save draining and yet to enable polling this mechanism is implemented:
         <ul style="list-style-type:square">
             <li>Forced poll interval - Polls the car actively every x minutes, slightly randomized. Recommended 60 (1 hour). You might want to change it to 999 (once a week approx.).</li>
@@ -52,8 +52,8 @@
         <param field="Username" label="Email-address"           width="200px" required="true"  default="john.doe@gmail.com"                  />
         <param field="Password" label="Password"                width="200px" required="true"  default="myLittleSecret" password="true"      />
         <param field="Mode1"    label="ABRP token"              width="300px" required="false" default="1234ab56-7cde-890f-a12b-3cde45678901"/>
-	    <param field="Mode3"    label="Intervals (in minutes: force; charging; heartbeat)" width="100px"  required="true" default="60;30;10">
-            <description>supply 3 values (separated by ';'): forced update; charging update; heartbeat</description>
+	    <param field="Mode3"    label="Intervals (minutes)" width="100px"  required="true" default="60;30;10">
+            <description>Polling intervals: supply 3 values (separated by ';'): forced update; charging update; heartbeat</description>
         </param>
         <param field="Mode6" label="Log level" width="75px">
             <options>
@@ -79,6 +79,7 @@ import logging
 import random
 from datetime import datetime
 import TeslaDevice
+import TeslaVehicle
 
 class TeslaPlugin:
 
@@ -89,11 +90,11 @@ class TeslaPlugin:
             Domoticz.Debugging(2)
             DumpConfigToLog()
             Domoticz.Log('Debug mode')
-            logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename=self.log_filename,level=logging.DEBUG)
+            logging.basicConfig(format='%(asctime)s - %(levelname)-8s - %(filename)-18s - %(message)s', filename=self.log_filename,level=logging.DEBUG)
         else:
-            if Parameters["Mode6"] == "2": logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename=self.log_filename, level=logging.INFO)
-            elif Parameters["Mode6"] == "3": logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename=self.log_filename, level=logging.WARNING)
-            else: logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename=self.log_filename, level=logging.ERROR)
+            if Parameters["Mode6"] == "2": logging.basicConfig(format='%(asctime)s - %(levelname)-8s - %(filename)-18s - %(message)s', filename=self.log_filename, level=logging.INFO)
+            elif Parameters["Mode6"] == "3": logging.basicConfig(format='%(asctime)s - %(levelname)-8s - %(filename)-18s - %(message)s', filename=self.log_filename, level=logging.WARNING)
+            else: logging.basicConfig(format='%(asctime)s - %(levelname)-8s - %(filename)-18s - %(message)-8s', filename=self.log_filename, level=logging.ERROR)
 
         logging.info("starting plugin version "+Parameters["Version"])
 
@@ -139,7 +140,7 @@ class TeslaPlugin:
         else:
             self.heartbeatinterval = float(self.heartbeatinterval) * 60
         
-        TeslaServer = TeslaDevice.TeslaAnyDevice(self.p_email)
+        TeslaServer = TeslaDevice.TeslaServer(self.p_email)
         
         initsuccess = TeslaServer.initialize()
         if initsuccess:
@@ -150,12 +151,14 @@ class TeslaPlugin:
             return False
 
         self.vehicle_list = TeslaServer.get_devices()
+        self.vehicle_dict = {}
         logging.info("Found " + str(len(self.vehicle_list)) + " vehicles")
         for vehicle in self.vehicle_list:
             logging.info("vehicle " + TeslaDevice.VEHICLE_TYPE[vehicle["vehicle_config"]["car_type"]] + " found, VIN: " + vehicle['vin'] + " called '" + vehicle['display_name'] + "'")
             self.createVehicleDevices(vehicle)
             vehicle.sync_wake_up()
             self.updateDevices(vehicle.get_vehicle_data())
+            self.vehicle_dict[vehicle['vin']] = TeslaVehicle.teslaVehicle(vehicle.get_vehicle_data())
 
         Domoticz.Log('Plugin starting up done')
         return True
@@ -187,6 +190,7 @@ class TeslaPlugin:
                 UpdateDeviceEx(9, 0, 0)
             # at night (between 2300 and 700) only one in 2 polls is done
             heartbeatmultiplier = (1 if 7 <= datetime.now().hour <= 22 else 2)
+            current_interval = self.heartbeatinterval
             logging.debug("onHeartbeat: self.lastHeartbeatTime = " + str(self.lastHeartbeatTime) + " with seconds interval = " + str(heartbeatmultiplier * self.heartbeatinterval))
             if self.lastHeartbeatTime == 0 or float((datetime.now() - self.lastHeartbeatTime).total_seconds()) > (random.uniform(0.75,1.5)*(heartbeatmultiplier * self.heartbeatinterval)):
                 logging.debug("polling vehicle")

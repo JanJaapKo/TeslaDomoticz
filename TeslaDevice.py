@@ -3,13 +3,13 @@ import teslapy
 import os
 
 VEHICLE_TYPE = {
-    "model3": 'Model Y',
-    "models": 'Model Y',
-    "modelx": 'Model Y',
+    "model3": 'Model 3',
+    "models": 'Model S',
+    "modelx": 'Model X',
     "modely": 'Model Y',
 }
 
-class TeslaAnyDevice():
+class TeslaServer():
     """generic class to interface device data with Tesla server"""
     def __init__(self,email):
         self.email = email
