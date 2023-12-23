@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.5.0">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.5.1">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -40,7 +40,7 @@
         If you omit your ABRP token, then no information will be sent to ABRP.
         <br/>
         <h3>Battery</h3>
-        If you poll the car all the time, when not driving or not charging, your battery may be drained, depending on the settings of your car to charge the auxiliary battery.
+        If you poll the car all the time when  not charging, your battery will be drained.
         There is no way for the plugin to determine if you start driving or charging other than polling the car. To save draining and yet to enable polling this mechanism is implemented:
         <ul style="list-style-type:square">
             <li>Forced poll interval - Polls the car actively every x minutes, slightly randomized. Recommended 60 (1 hour). You might want to change it to 999 (once a week approx.).</li>
@@ -191,16 +191,20 @@ class TeslaPlugin:
                 self.lastHeartbeatTime = 0
                 UpdateDeviceEx(9, 0, 0)
             for vin, vehicle in self.vehicle_dict.items():
-                # at night (between 2300 and 700) only one in 2 polls is done
+                # at night (between 2259 and 0700) only one in 2 polls is done
                 # unless charging or driving
-                if 7 <= datetime.now().hour <= 22 or vehicle.is_charging:
+                if 7 <= datetime.now().hour <= 22 or vehicle.is_charging or vehicle.is_driving:
                     heartbeatmultiplier = 1
                 else:
                     heartbeatmultiplier = 2
+                current_interval = self.forcepollinterval
                 if vehicle.is_charging:
                     current_interval = self.charginginterval
-                else:
-                    current_interval = self.heartbeatinterval
+                if vehicle.is_driving:
+                    current_interval = self.charginginterval
+                if vehicle.battery_level <10 and not vehicle.is_charging:
+                    # at low battery level, reduce polling to 5 hrs interval
+                    current_interval = 5*3600 
                 logging.debug("onHeartbeat: vehicle.lastHeartbeatTime = " + str(self.lastHeartbeatTime) + " with seconds interval = " + str(heartbeatmultiplier * current_interval))
                 logging.debug("onHeartbeat: vehicle.lastpollTime = " + vehicle.last_poll_time.strftime("%Y-%m-%d %H:%M:%S") )
                 #if self.lastHeartbeatTime == 0 or float((datetime.now() - self.lastHeartbeatTime).total_seconds()) > (random.uniform(0.75,1.5)*(heartbeatmultiplier * current_interval)):
@@ -210,9 +214,6 @@ class TeslaPlugin:
                     self.lastHeartbeatTime = datetime.now()
                     vehicle.vehicle.sync_wake_up()
                     self.updateDevices(vehicle.get_vehicle_data())
-            
-    #        except:
-    #            logging.debug("heartbeat wasnt set yet")
         return
 
     def onDisconnect(self, Connection):
@@ -267,8 +268,8 @@ class TeslaPlugin:
     
     def updateDevices(self,deviceStatus):
         deviceId = deviceStatus['vin']
-        UpdateDeviceEx(deviceId, 1, deviceStatus['vehicle_state']['odometer'], str(deviceStatus['vehicle_state']['odometer']))  # odometer
-        UpdateDeviceEx(deviceId, 2, deviceStatus['charge_state']['battery_range'], str(deviceStatus['charge_state']['battery_range']))  # range
+        UpdateDeviceEx(deviceId, 1, int(deviceStatus['vehicle_state']['odometer']), "{:.1f}".format(deviceStatus['vehicle_state']['odometer']))  # odometer
+        UpdateDeviceEx(deviceId, 2, deviceStatus['charge_state']['battery_range'], "{:.1f}".format(deviceStatus['charge_state']['battery_range']))  # range
         #UpdateDeviceEx(deviceId, 3, deviceStatus['vehicle_state']['odometer'], str(deviceStatus['vehicle_state']['odometer']))  # charging
         if (deviceStatus['charge_state']['battery_level']>0):    #avoid to set soc=0% 
             UpdateDeviceEx(deviceId, 4, deviceStatus['charge_state']['battery_level'], str(deviceStatus['charge_state']['battery_level']))  # soc

@@ -21,6 +21,10 @@ class teslaVehicle():
         return
     
     @property
+    def battery_level(self):
+        return self.__local_data["charge_state"]["battery_level"]
+
+    @property
     def car_type(self):
         return self.__cartype
 

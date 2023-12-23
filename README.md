@@ -3,8 +3,10 @@ This plugin integrates the [TeslaPy](https://github.com/tdorssers/TeslaPy) libra
 
 This plugin is (at this moment) only tested with a 2023 Model Y. I assume other vehicles will work too. The library supports all Tesla products, but this plugin is (for now) only implementing vehicles.
 
+Be aware that the polling of the car will cause the battery to be drained!
+
 ## Current status:
-Basic version working, retreives only battery status.
+Basic version working, retreives only battery status, odometer and range.
 
 Be aware that breaking changes may be introduced!!
 
