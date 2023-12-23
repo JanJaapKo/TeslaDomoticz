@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.5.1">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.5.2">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -132,8 +132,8 @@ class TeslaPlugin:
         intervals = Parameters["Mode3"]
         for delim in ',;:': intervals = intervals.replace(delim, ' ')
         intervals=intervals.split(" ")
-        self.forcepollinterval = float(intervals[0])
-        self.charginginterval = float(intervals[1])
+        self.forcepollinterval = float(intervals[0]) * 60
+        self.charginginterval = float(intervals[1]) * 60
         self.heartbeatinterval = float(intervals[2])
         if self.heartbeatinterval == "":
             self.heartbeatinterval = float(120)
@@ -205,8 +205,8 @@ class TeslaPlugin:
                 if vehicle.battery_level <10 and not vehicle.is_charging:
                     # at low battery level, reduce polling to 5 hrs interval
                     current_interval = 5*3600 
-                logging.debug("onHeartbeat: vehicle.lastHeartbeatTime = " + str(self.lastHeartbeatTime) + " with seconds interval = " + str(heartbeatmultiplier * current_interval))
-                logging.debug("onHeartbeat: vehicle.lastpollTime = " + vehicle.last_poll_time.strftime("%Y-%m-%d %H:%M:%S") )
+                logging.info("onHeartbeat: vehicle.lastHeartbeatTime = " + str(self.lastHeartbeatTime) + " with seconds interval = " + str(heartbeatmultiplier * current_interval))
+                logging.info("onHeartbeat: vehicle.lastpollTime = " + vehicle.last_poll_time.strftime("%Y-%m-%d %H:%M:%S") )
                 #if self.lastHeartbeatTime == 0 or float((datetime.now() - self.lastHeartbeatTime).total_seconds()) > (random.uniform(0.75,1.5)*(heartbeatmultiplier * current_interval)):
                 #check per vehicle in the list if it needs to be polled
                 if self.lastHeartbeatTime == 0 or float((datetime.now() - vehicle.last_poll_time).total_seconds()) > (random.uniform(0.75,1.5)*(heartbeatmultiplier * current_interval)):
