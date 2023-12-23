@@ -8,7 +8,18 @@
 #   It also emulates the Device and Unit from the Ex framework
 #
 Devices = dict()
-Parameters = {"Mode1": "False", "Mode2": 1, "Mode3" : "60;30;10", "Mode4": "Local", "Mode5": "", "Mode6": 1, "Port": 8443, "Username": "mail@domain.com" , "Password": "aNicerp@ssword", "Version" : "0.0.0" }
+Parameters = {
+    "Mode1": "False", 
+    "Mode2": 1, 
+    "Mode3" : "60;30;10", 
+    "Mode4": "Local", 
+    "Mode5": "", 
+    "Mode6": 1, 
+    "Port": 8443, 
+    "Username": "mail@domain.com" , 
+    "Password": "aNicerp@ssword", 
+    "Version" : "0.0.0",
+    "Name" : "fakeDomoticz" }
 config = dict()
 
 class myUnit:

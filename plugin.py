@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.4.2">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.5.0">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -52,8 +52,8 @@
         <param field="Username" label="Email-address"           width="200px" required="true"  default="john.doe@gmail.com"                  />
         <param field="Password" label="Password"                width="200px" required="true"  default="myLittleSecret" password="true"      />
         <param field="Mode1"    label="ABRP token"              width="300px" required="false" default="1234ab56-7cde-890f-a12b-3cde45678901"/>
-	    <param field="Mode3"    label="Intervals (minutes)" width="100px"  required="true" default="60;30;10">
-            <description>Polling intervals: supply 3 values (separated by ';'): forced update; charging update; heartbeat</description>
+	    <param field="Mode3"    label="Intervals (minutes)" width="100px"  required="true" default="60;30;30">
+            <description>Polling intervals: supply 3 values (separated by ';'): normal update; charging update; driving update</description>
         </param>
         <param field="Mode6" label="Log level" width="75px">
             <options>
@@ -99,7 +99,7 @@ class TeslaPlugin:
         logging.info("starting plugin version "+Parameters["Version"])
 
         self.lastHeartbeatTime = 0
-        self.runCounter = 10
+        self.runCounter = 5
 
         '''
         # add custom images
@@ -139,7 +139,6 @@ class TeslaPlugin:
             self.heartbeatinterval = float(120)
         else:
             self.heartbeatinterval = float(self.heartbeatinterval) * 60
-        self.current_interval = self.heartbeatinterval
         
         TeslaServer = TeslaDevice.TeslaServer(self.p_email)
         
@@ -155,13 +154,14 @@ class TeslaPlugin:
         self.vehicle_dict = {}
         logging.info("Found " + str(len(self.vehicle_list)) + " vehicles")
         for vehicle in self.vehicle_list:
-            logging.info("vehicle " + TeslaDevice.VEHICLE_TYPE[vehicle["vehicle_config"]["car_type"]] + " found, VIN: " + vehicle['vin'] + " called '" + vehicle['display_name'] + "'")
-            self.createVehicleDevices(vehicle)
             self.vehicle_dict[vehicle['vin']] = TeslaVehicle.teslaVehicle(vehicle)
             self.vehicle_dict[vehicle['vin']].vehicle.sync_wake_up()
+            self.createVehicleDevices(self.vehicle_dict[vehicle['vin']])
             self.updateDevices(self.vehicle_dict[vehicle['vin']].get_vehicle_data())
+            logging.info("vehicle " + self.vehicle_dict[vehicle['vin']].car_type + " found, VIN: " + self.vehicle_dict[vehicle['vin']].vin + " called '" + self.vehicle_dict[vehicle['vin']].name + "'")
             logging.info("the vehicle called " + self.vehicle_dict[vehicle['vin']].name + " has charging state " + self.vehicle_dict[vehicle['vin']].charging)
 
+        logging.debug("onStart: vehicle dict: "+str(self.vehicle_dict))
         Domoticz.Log('Plugin starting up done')
         return True
 
@@ -190,43 +190,24 @@ class TeslaPlugin:
             if manualForcePoll:
                 self.lastHeartbeatTime = 0
                 UpdateDeviceEx(9, 0, 0)
-            # at night (between 2300 and 700) only one in 2 polls is done
-            heartbeatmultiplier = (1 if 7 <= datetime.now().hour <= 22 else 2)
-            self.current_interval = self.heartbeatinterval
-            logging.debug("onHeartbeat: self.lastHeartbeatTime = " + str(self.lastHeartbeatTime) + " with seconds interval = " + str(heartbeatmultiplier * self.current_interval))
-            if self.lastHeartbeatTime == 0 or float((datetime.now() - self.lastHeartbeatTime).total_seconds()) > (random.uniform(0.75,1.5)*(heartbeatmultiplier * self.current_interval)):
-                logging.debug("polling vehicle")
-                self.lastHeartbeatTime = datetime.now()
-                '''
-                updated, parsedStatus, afstand, googlelocation = pollcar(manualForcePoll)
-                pluginName = Devices[11].Name.split("-")[0]
-                googlelocation = '<a target="_blank" rel="noopener noreferrer" ' + googlelocation + pluginName + " - location</a> "
-                if updated:
-                    logging.debug("about to update devices")
-                    logging.debug("parsedStatus: " + str(parsedStatus))
-                    UpdateDevice(1, 0, parsedStatus['odometer'])  # kmstand
-                    UpdateDevice(2, 0, parsedStatus['range'])  # range
-                    UpdateDevice(3, parsedStatus['charging'], parsedStatus['charging'])  # charging
-                    if (parsedStatus['chargeHV']>0):    #avoid to set soc=0% 
-                        UpdateDevice(4, parsedStatus['chargeHV'], parsedStatus['chargeHV'])  # soc
-                    UpdateDevice(5, parsedStatus['charge12V'], parsedStatus['charge12V'])  # soc12v
-                    UpdateDevice(6, parsedStatus['status12V'], parsedStatus['status12V'])  # status 12v
-                    UpdateDevice(7, parsedStatus['trunkopen'], parsedStatus['trunkopen'])  # tailgate
-                    UpdateDevice(12, parsedStatus['hoodopen'], parsedStatus['hoodopen'])  # hood
-                    UpdateDevice(13, 0, str(parsedStatus['speed'])+" km/h")  # current speed
-                    UpdateDevice(14, 0, str(parsedStatus['chargingTime']/60))  # remaining charge time in hrs
-                    if Devices[8].Name != str(afstand) or str(Devices[8].sValue) != googlelocation:
-                        Devices[8].Update(nValue=0, sValue=googlelocation, Name=pluginName + "- Distance from home: " + str(afstand))
-                        Domoticz.Log("Update " +  str(afstand) + "' (" + Devices[8].Name + ")")
-                    UpdateDevice(10, parsedStatus['locked'], parsedStatus['locked'])  # deuren
-                    pluginName = Devices[11].Name.split(":")[0]
-                    climate = pluginName + ": on" if (parsedStatus['climateactive'] == True) else pluginName + ": off"
-                    Level = parsedStatus['temperature']
-                    Devices[11].Update(nValue=0, sValue=str(Level), Name= climate)
-            '''
-
-                for vehicle in self.vehicle_dict:
+            for vin, vehicle in self.vehicle_dict.items():
+                # at night (between 2300 and 700) only one in 2 polls is done
+                # unless charging or driving
+                if 7 <= datetime.now().hour <= 22 or vehicle.is_charging:
+                    heartbeatmultiplier = 1
+                else:
+                    heartbeatmultiplier = 2
+                if vehicle.is_charging:
+                    current_interval = self.charginginterval
+                else:
+                    current_interval = self.heartbeatinterval
+                logging.debug("onHeartbeat: vehicle.lastHeartbeatTime = " + str(self.lastHeartbeatTime) + " with seconds interval = " + str(heartbeatmultiplier * current_interval))
+                logging.debug("onHeartbeat: vehicle.lastpollTime = " + vehicle.last_poll_time.strftime("%Y-%m-%d %H:%M:%S") )
+                #if self.lastHeartbeatTime == 0 or float((datetime.now() - self.lastHeartbeatTime).total_seconds()) > (random.uniform(0.75,1.5)*(heartbeatmultiplier * current_interval)):
+                #check per vehicle in the list if it needs to be polled
+                if self.lastHeartbeatTime == 0 or float((datetime.now() - vehicle.last_poll_time).total_seconds()) > (random.uniform(0.75,1.5)*(heartbeatmultiplier * current_interval)):
                     logging.info(" Updating vehicle " + vehicle.car_type + " VIN: " + vehicle.vin + " called '" + vehicle.name + "'")
+                    self.lastHeartbeatTime = datetime.now()
                     vehicle.vehicle.sync_wake_up()
                     self.updateDevices(vehicle.get_vehicle_data())
             
@@ -244,20 +225,23 @@ class TeslaPlugin:
         return True
 
     def createVehicleDevices(self, device):
-        deviceId = device['vin']
+        deviceId = device.vin
+        deviceName = device.name
+        if (1 not in Devices[deviceId].Units):
+            Domoticz.Unit(Unit=1, Type=113, Subtype=0 , Switchtype=3 , Name = deviceName + " - odometer", DeviceID=deviceId).Create()
+        if (2 not in Devices[deviceId].Units):
+            Domoticz.Unit(Unit=2, Type=243, Subtype=31, Switchtype=0 , Name = deviceName + " - range", DeviceID=deviceId).Create()
+        if (3 not in Devices[deviceId].Units):
+            Domoticz.Unit(Unit=3, Type=244, Subtype=73, Switchtype=0 , Name = deviceName + " - charging", DeviceID=deviceId).Create()
         if (4 not in Devices[deviceId].Units):
-            Domoticz.Unit(Unit=4, TypeName="Percentage", Name="Battery percentage " + str(deviceId), DeviceID=deviceId).Create()
+            Domoticz.Unit(Unit=4, TypeName="Percentage", Name = deviceName + " - Battery percentage ", Used=1, DeviceID=deviceId).Create()
+        if (5 not in Devices[deviceId].Units):
+            Domoticz.Unit(Unit=5, Type=243, Subtype=31, Name = deviceName + " - Remaining charge time",  Options = {'Custom':'1;hrs'}, DeviceID=deviceId).Create()
 
         '''
             Domoticz.Unit(Name="Inverter temperature (SN: " + deviceId + ")", DeviceID=deviceId,
                             Unit=(self.inverterTemperatureUnit), Type=80, Subtype=5).Create()
 
-        if (1 not in Devices):
-            Domoticz.Device(Unit=1, Type=113, Subtype=0 , Switchtype=3 , Name="odometer").Create()
-        if (2 not in Devices):
-            Domoticz.Device(Unit=2, Type=243, Subtype=31, Switchtype=0 , Name="range").Create()
-        if (3 not in Devices):
-            Domoticz.Device(Unit=3, Type=244, Subtype=73, Switchtype=0 , Name="charging").Create()
         if (5 not in Devices):
             Domoticz.Device(Unit=5, TypeName="Percentage"              , Name="Battery 12v").Create()
         if (6 not in Devices):
@@ -277,14 +261,15 @@ class TeslaPlugin:
             Domoticz.Device(Unit=12, Type=244, Subtype=73, Switchtype=11, Name="hood").Create()
         if (13 not in Devices):
             Domoticz.Device(Unit=13, Type=243, Subtype=31, Name="current speed").Create()
-        if (14 not in Devices):
-            Domoticz.Device(Unit=14, Type=243, Subtype=31, Name="Remaining charge time",  Options = {'Custom':'1;hrs'}).Create()
         '''
         logging.info("Devices created.")
         return True
     
     def updateDevices(self,deviceStatus):
         deviceId = deviceStatus['vin']
+        UpdateDeviceEx(deviceId, 1, deviceStatus['vehicle_state']['odometer'], str(deviceStatus['vehicle_state']['odometer']))  # odometer
+        UpdateDeviceEx(deviceId, 2, deviceStatus['charge_state']['battery_range'], str(deviceStatus['charge_state']['battery_range']))  # range
+        #UpdateDeviceEx(deviceId, 3, deviceStatus['vehicle_state']['odometer'], str(deviceStatus['vehicle_state']['odometer']))  # charging
         if (deviceStatus['charge_state']['battery_level']>0):    #avoid to set soc=0% 
             UpdateDeviceEx(deviceId, 4, deviceStatus['charge_state']['battery_level'], str(deviceStatus['charge_state']['battery_level']))  # soc
 
