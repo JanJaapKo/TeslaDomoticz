@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.5.2">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.5.3">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -49,8 +49,9 @@
         <br/>
     </description>
     <params>
-        <param field="Username" label="Email-address"           width="200px" required="true"  default="john.doe@gmail.com"                  />
-        <param field="Password" label="Password"                width="200px" required="true"  default="myLittleSecret" password="true"      />
+        <param field="Username" label="Email-address"           width="200px" required="true"  default="john.doe@gmail.com" >
+            <description>Email adress for your Tesla account</description>
+        </param>
         <param field="Mode1"    label="ABRP token"              width="300px" required="false" default="1234ab56-7cde-890f-a12b-3cde45678901"/>
 	    <param field="Mode3"    label="Intervals (minutes)" width="100px"  required="true" default="60;30;30">
             <description>Polling intervals: supply 3 values (separated by ';'): normal update; charging update; driving update</description>
@@ -121,7 +122,6 @@ class TeslaPlugin:
             Domoticz.Debugging(1)
             DumpConfigToLog()
         self.p_email = Parameters["Username"]
-        #self.p_password = Parameters["Password"] # TODO: check if not needed elsewhere
         self.p_abrp_token = Parameters["Mode1"]
         #self.p_abrp_carmodel = Parameters["Mode2"] # TODO"filter this info from Tesla API
         self.p_homelocation = Settings["Location"]
@@ -153,6 +153,7 @@ class TeslaPlugin:
         self.vehicle_list = TeslaServer.get_devices()
         self.vehicle_dict = {}
         logging.info("Found " + str(len(self.vehicle_list)) + " vehicles")
+        logging.debug("list of vehicles from server: " + str(self.vehicle_list))
         for vehicle in self.vehicle_list:
             self.vehicle_dict[vehicle['vin']] = TeslaVehicle.teslaVehicle(vehicle)
             self.vehicle_dict[vehicle['vin']].vehicle.sync_wake_up()
@@ -205,8 +206,8 @@ class TeslaPlugin:
                 if vehicle.battery_level <10 and not vehicle.is_charging:
                     # at low battery level, reduce polling to 5 hrs interval
                     current_interval = 5*3600 
-                logging.info("onHeartbeat: vehicle.lastHeartbeatTime = " + str(self.lastHeartbeatTime) + " with seconds interval = " + str(heartbeatmultiplier * current_interval))
-                logging.info("onHeartbeat: vehicle.lastpollTime = " + vehicle.last_poll_time.strftime("%Y-%m-%d %H:%M:%S") )
+                logging.debug("onHeartbeat: vehicle.lastHeartbeatTime = " + str(self.lastHeartbeatTime) + " with seconds interval = " + str(heartbeatmultiplier * current_interval))
+                logging.debug("onHeartbeat: vehicle.lastpollTime = " + vehicle.last_poll_time.strftime("%Y-%m-%d %H:%M:%S") )
                 #if self.lastHeartbeatTime == 0 or float((datetime.now() - self.lastHeartbeatTime).total_seconds()) > (random.uniform(0.75,1.5)*(heartbeatmultiplier * current_interval)):
                 #check per vehicle in the list if it needs to be polled
                 if self.lastHeartbeatTime == 0 or float((datetime.now() - vehicle.last_poll_time).total_seconds()) > (random.uniform(0.75,1.5)*(heartbeatmultiplier * current_interval)):
@@ -267,6 +268,7 @@ class TeslaPlugin:
         return True
     
     def updateDevices(self,deviceStatus):
+        logging.debug("vehicle data from server: " + str(deviceStatus))
         deviceId = deviceStatus['vin']
         UpdateDeviceEx(deviceId, 1, int(deviceStatus['vehicle_state']['odometer']), "{:.1f}".format(deviceStatus['vehicle_state']['odometer']))  # odometer
         UpdateDeviceEx(deviceId, 2, deviceStatus['charge_state']['battery_range'], "{:.1f}".format(deviceStatus['charge_state']['battery_range']))  # range
