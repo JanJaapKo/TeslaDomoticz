@@ -275,6 +275,7 @@ class TeslaPlugin:
     def updateDevices(self,deviceStatus):
         logging.debug("vehicle data from server: " + str(deviceStatus))
         deviceId = deviceStatus['vin']
+        deviceName = deviceStatus['display_name']
         UpdateDeviceEx(deviceId, 1, int(deviceStatus['vehicle_state']['odometer']), "{:.1f}".format(deviceStatus['vehicle_state']['odometer']))  # odometer
         UpdateDeviceEx(deviceId, 2, deviceStatus['charge_state']['battery_range'], "{:.1f}".format(deviceStatus['charge_state']['battery_range']))  # range
         #UpdateDeviceEx(deviceId, 3, deviceStatus['vehicle_state']['odometer'], str(deviceStatus['vehicle_state']['odometer']))  # charging
@@ -282,7 +283,7 @@ class TeslaPlugin:
             UpdateDeviceEx(deviceId, 4, deviceStatus['charge_state']['battery_level'], str(deviceStatus['charge_state']['battery_level']))  # soc
 
         if 8 in Devices[deviceId].Units:
-            location_url = '<a target="_blank" rel="noopener noreferrer" ' + get_google_url(deviceStatus['drive_state']['active_route_latitude'], deviceStatus['drive_state']['active_route_longitude']) + pluginName + " - location</a> "
+            location_url = '<a target="_blank" rel="noopener noreferrer" ' + get_google_url(deviceStatus['drive_state']['active_route_latitude'], deviceStatus['drive_state']['active_route_longitude']) + deviceName + " - location</a> "
             UpdateDeviceEx(deviceId, 8, 0, location_url)  # range
 
         logging.info("Devices updated.")
