@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.5.5">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.5.6">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -276,8 +276,14 @@ class TeslaPlugin:
         logging.debug("vehicle data from server: " + str(deviceStatus))
         deviceId = deviceStatus['vin']
         deviceName = deviceStatus['display_name']
-        UpdateDeviceEx(deviceId, 1, int(deviceStatus['vehicle_state']['odometer']), "{:.1f}".format(deviceStatus['vehicle_state']['odometer']))  # odometer
-        UpdateDeviceEx(deviceId, 2, deviceStatus['charge_state']['battery_range'], "{:.1f}".format(deviceStatus['charge_state']['battery_range']))  # range
+        if deviceStatus['gui_settings']['gui_distance_units'] == "km/hr":
+            odometer = get_km_from_miles(deviceStatus['vehicle_state']['odometer'])
+            battery_range = get_km_from_miles(deviceStatus['charge_state']['battery_range'])
+        else:
+            odometer = deviceStatus['vehicle_state']['odometer']
+            battery_range = deviceStatus['charge_state']['battery_range']
+        UpdateDeviceEx(deviceId, 1, int(odometer), "{:.1f}".format(odometer))  # odometer
+        UpdateDeviceEx(deviceId, 2, battery_range, "{:.1f}".format(battery_range))  # range
         #UpdateDeviceEx(deviceId, 3, deviceStatus['vehicle_state']['odometer'], str(deviceStatus['vehicle_state']['odometer']))  # charging
         if (deviceStatus['charge_state']['battery_level']>0):    #avoid to set soc=0% 
             UpdateDeviceEx(deviceId, 4, deviceStatus['charge_state']['battery_level'], str(deviceStatus['charge_state']['battery_level']))  # soc
