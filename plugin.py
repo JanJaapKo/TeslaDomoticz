@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.5.7">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.5.8">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -122,6 +122,13 @@ class TeslaPlugin:
         if Parameters["Mode6"] == "1":
             #Domoticz.Debugging(1)
             DumpConfigToLog()
+
+        #check upgrading of version needs actions
+        self.version = Parameters["Version"]
+        self.enabled = self.checkVersion(self.version)
+        if not self.enabled:
+            return False
+
         self.p_email = Parameters["Username"]
         self.p_abrp_token = Parameters["Mode1"]
         #self.p_abrp_carmodel = Parameters["Mode2"] # TODO"filter this info from Tesla API
@@ -159,7 +166,6 @@ class TeslaPlugin:
             self.vehicle_dict[vehicle['vin']] = TeslaVehicle.teslaVehicle(vehicle)
             self.vehicle_dict[vehicle['vin']].vehicle.sync_wake_up()
             self.createVehicleDevices(self.vehicle_dict[vehicle['vin']])
-            #self.updateDevices(self.vehicle_dict[vehicle['vin']].get_vehicle_data())
             self.updateDevices(self.vehicle_dict[vehicle['vin']])
             logging.info("vehicle " + self.vehicle_dict[vehicle['vin']].car_type + " found, VIN: " + self.vehicle_dict[vehicle['vin']].vin + " called '" + self.vehicle_dict[vehicle['vin']].name + "'")
             logging.info("the vehicle called " + self.vehicle_dict[vehicle['vin']].name + " has charging state " + self.vehicle_dict[vehicle['vin']].charging)
@@ -210,7 +216,6 @@ class TeslaPlugin:
                     current_interval = 5*3600 
                 logging.debug("onHeartbeat: vehicle.lastHeartbeatTime = " + str(self.lastHeartbeatTime) + " with seconds interval = " + str(heartbeatmultiplier * current_interval))
                 logging.debug("onHeartbeat: vehicle.lastpollTime = " + vehicle.last_poll_time.strftime("%Y-%m-%d %H:%M:%S") )
-                #if self.lastHeartbeatTime == 0 or float((datetime.now() - self.lastHeartbeatTime).total_seconds()) > (random.uniform(0.75,1.5)*(heartbeatmultiplier * current_interval)):
                 #check per vehicle in the list if it needs to be polled
                 if self.lastHeartbeatTime == 0 or float((datetime.now() - vehicle.last_poll_time).total_seconds()) > (random.uniform(0.75,1.5)*(heartbeatmultiplier * current_interval)):
                     logging.info(" Updating vehicle " + vehicle.car_type + " VIN: " + vehicle.vin + " called '" + vehicle.name + "'")
@@ -274,13 +279,11 @@ class TeslaPlugin:
     
     def updateDevices(self,vehicle):
         vehicle.get_vehicle_data()
-        #deviceId = deviceStatus['vin']
-        #deviceName = deviceStatus['display_name']
         deviceId = vehicle.vin
         deviceName = vehicle.name
         UpdateDeviceEx(deviceId, 1, vehicle.odometer, "{:.0f}".format(vehicle.odometer))  # odometer
         UpdateDeviceEx(deviceId, 2, vehicle.battery_range, "{:.1f}".format(vehicle.battery_range))  # range
-        #UpdateDeviceEx(deviceId, 3, deviceStatus['vehicle_state']['odometer'], str(deviceStatus['vehicle_state']['odometer']))  # charging
+        UpdateDeviceEx(deviceId, 3, vehicle.is_charging, str(vehicle.is_charging))  # charging
         if (vehicle.battery_level>0):    #avoid to set soc=0% 
             UpdateDeviceEx(deviceId, 4, vehicle.battery_level, str(vehicle.battery_level))  # soc
 
@@ -290,6 +293,53 @@ class TeslaPlugin:
 
         logging.info("Devices updated.")
         return True
+
+    def updateTo1(self):
+        """routine to check if we can update to version 1"""
+        if len(Devices)>0:
+            Domoticz.Error("Devices are present. Please upgrade them before upgrading to this version!")
+            Domoticz.Error("Plugin will now exit but will be enabled on next start")
+            self._setVersion("1","0","0")
+            return False
+        else:
+            return True
+
+    def checkVersion(self, version):
+        """checks actual version against stored version as 'Ma.Mi.Pa' and checks if updates needed"""
+        #read version from stored configuration
+        ConfVersion = getConfigItem("plugin version", "0.0.0")
+        Domoticz.Log("Starting version: " + version )
+        logging.info("Starting version: " + version )
+        MaCurrent,MiCurrent,PaCurrent = version.split('.')
+        MaConf,MiConf,PaConf = ConfVersion.split('.')
+        logging.debug("checking versions: current '{0}', config '{1}'".format(version, ConfVersion))
+        can_continue = True
+        if int(MaConf) < int(MaCurrent):
+            Domoticz.Log("Major version upgrade: {0} -> {1}".format(MaConf,MaCurrent))
+            logging.info("Major version upgrade: {0} -> {1}".format(MaConf,MaCurrent))
+            #add code to perform MAJOR upgrades
+            if int(MaConf) < 1:
+                can_continue = self.updateTo1()
+        elif int(MiConf) < int(MiCurrent):
+            Domoticz.Debug("Minor version upgrade: {0} -> {1}".format(MiConf,MiCurrent))
+            logging.debug("Minor version upgrade: {0} -> {1}".format(MiConf,MiCurrent))
+            #add code to perform MINOR upgrades
+        elif int(PaConf) < int(PaCurrent):
+            Domoticz.Debug("Patch version upgrade: {0} -> {1}".format(PaConf,PaCurrent))
+            logging.debug("Patch version upgrade: {0} -> {1}".format(PaConf,PaCurrent))
+            #add code to perform PATCH upgrades, if any
+        if ConfVersion != version and can_continue:
+            #store new version info
+            self._setVersion(MaCurrent,MiCurrent,PaCurrent)
+        return can_continue
+
+    def _setVersion(self, major, minor, patch):
+        #set configs
+        logging.debug("Setting version to {0}.{1}.{2}".format(major, minor, patch))
+        setConfigItem(Key="MajorVersion", Value=major)
+        setConfigItem(Key="MinorVersion", Value=minor)
+        setConfigItem(Key="patchVersion", Value=patch)
+        setConfigItem(Key="plugin version", Value="{0}.{1}.{2}".format(major, minor, patch))
         
 global _plugin
 _plugin = TeslaPlugin()
@@ -328,6 +378,7 @@ def onHeartbeat():
 
 # Generic helper functions
 def DumpConfigToLog():
+    Domoticz.Debug("Parameters count: " + str(len(Parameters)))
     for x in Parameters:
         if Parameters[x] != "":
             Domoticz.Debug("' - " + x + "':'" + str(Parameters[x]) + "'")
@@ -344,6 +395,12 @@ def DumpConfigToLog():
         for UnitNo in Device.Units:
             Unit = Device.Units[UnitNo]
             Domoticz.Debug(" - Unit:       '" + str(Unit) + "'")
+    Configurations = Domoticz.Configuration()
+    Domoticz.Debug("Configurations count: " + str(len(Configurations)))
+    for x in Configurations:
+        if Configurations[x] != "":
+            Domoticz.Debug( " - Configuration '" + x + "':'" + str(Configurations[x]) + "'")
+
     return
 
 def UpdateDevice(Unit, nValue, sValue):
@@ -356,7 +413,7 @@ def UpdateDevice(Unit, nValue, sValue):
 
 def UpdateDeviceEx(Device, Unit, nValue, sValue, AlwaysUpdate=False):
     # Make sure that the Domoticz device still exists (they can be deleted) before updating it
-    if (Device in Devices):
+    if (Device in Devices and Unit in Devices[Device].Units):
         if (Devices[Device].Units[Unit].nValue != nValue) or (Devices[Device].Units[Unit].sValue != sValue) or AlwaysUpdate:
                 logging.info("Updating device '"+Devices[Device].Units[Unit].Name+ "' with current sValue '"+Devices[Device].Units[Unit].sValue+"' to '" +sValue+"'")
             #try:
@@ -368,6 +425,9 @@ def UpdateDeviceEx(Device, Unit, nValue, sValue, AlwaysUpdate=False):
             # except:
                 # Domoticz.Error("Update of device failed: "+str(Unit)+"!")
                 # logging.error("Update of device failed: "+str(Unit)+"!")
+    else:
+        Domoticz.Error("trying to update a non-existent unit "+str(Unit)+" from device "+str(Device))
+        logging.error("trying to update a non-existent unit "+str(Unit)+" from device "+str(Device))
     return
 
 
