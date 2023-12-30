@@ -2,15 +2,15 @@ import logging
 import teslapy
 import TeslaDevice
 from datetime import datetime
+from utils import *
 
 class teslaVehicle():
     def __init__(self,vehicle):
         self.vehicle=vehicle
-        self.__name = vehicle['display_name'] 
-        self.__charging_state = ""
+        #get initial set of vehicle data (no point to init without)
+        self.__local_data = self.vehicle.get_vehicle_data()
+        self.__read_data(self.__local_data)
         self.__last_poll_time = datetime.now()
-        self.__vin = vehicle["vin"]
-        self.__cartype = ""
         logging.debug("vehicle created: " + self.__name)
 
     def __read_data(self, vehicle_data):
@@ -18,11 +18,22 @@ class teslaVehicle():
         self.__vin = vehicle_data["vin"]
         self.__name = vehicle_data['display_name'] 
         self.__cartype = TeslaDevice.VEHICLE_TYPE[vehicle_data["vehicle_config"]["car_type"]]
+        if vehicle_data['gui_settings']['gui_distance_units'] == "km/hr":
+            self.__metric = True
+        else:
+            self.__metric = False
         return
     
     @property
     def battery_level(self):
         return self.__local_data["charge_state"]["battery_level"]
+
+    @property
+    def battery_range(self):
+        if self.__metric:
+            return get_km_from_miles(self.__local_data['charge_state']['battery_range'])
+        else:
+            return self.__local_data['charge_state']['battery_range']
 
     @property
     def car_type(self):
@@ -38,7 +49,7 @@ class teslaVehicle():
         return self.__local_data["drive_state"]["active_route_latitude"], self.__local_data["drive_state"]["active_route_longitude"]
 
     @property
-    def get_location_url(self):
+    def get_google_url(self):
         """returns URL to current google maps location"""
         return 'href="http://www.google.com/maps/search/?api=1&query=' + str(self.__local_data["drive_state"]["active_route_latitude"]) + ',' + str(self.__local_data["drive_state"]["active_route_longitude"]) + '">'
 
@@ -67,6 +78,13 @@ class teslaVehicle():
     @property
     def name(self):
         return self.__name
+
+    @property
+    def odometer(self):
+        if self.__metric:
+            return round(get_km_from_miles(self.__local_data['vehicle_state']['odometer']))
+        else:
+            return round(self.__local_data['vehicle_state']['odometer'])
         
     @property 
     def vin(self):
@@ -78,6 +96,7 @@ class teslaVehicle():
 
     def get_vehicle_data(self):
         self.__local_data = self.vehicle.get_vehicle_data()
+        logging.debug("vehicle data from server: " + str(self.__local_data))
         self.__read_data(self.__local_data)
         self.__last_poll_time = datetime.now()
         return self.__local_data

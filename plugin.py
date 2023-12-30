@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.5.6">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.5.7">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -81,7 +81,6 @@ import random
 from datetime import datetime
 import TeslaDevice
 import TeslaVehicle
-from utils import *
 
 class TeslaPlugin:
 
@@ -160,7 +159,8 @@ class TeslaPlugin:
             self.vehicle_dict[vehicle['vin']] = TeslaVehicle.teslaVehicle(vehicle)
             self.vehicle_dict[vehicle['vin']].vehicle.sync_wake_up()
             self.createVehicleDevices(self.vehicle_dict[vehicle['vin']])
-            self.updateDevices(self.vehicle_dict[vehicle['vin']].get_vehicle_data())
+            #self.updateDevices(self.vehicle_dict[vehicle['vin']].get_vehicle_data())
+            self.updateDevices(self.vehicle_dict[vehicle['vin']])
             logging.info("vehicle " + self.vehicle_dict[vehicle['vin']].car_type + " found, VIN: " + self.vehicle_dict[vehicle['vin']].vin + " called '" + self.vehicle_dict[vehicle['vin']].name + "'")
             logging.info("the vehicle called " + self.vehicle_dict[vehicle['vin']].name + " has charging state " + self.vehicle_dict[vehicle['vin']].charging)
 
@@ -216,7 +216,7 @@ class TeslaPlugin:
                     logging.info(" Updating vehicle " + vehicle.car_type + " VIN: " + vehicle.vin + " called '" + vehicle.name + "'")
                     self.lastHeartbeatTime = datetime.now()
                     vehicle.vehicle.sync_wake_up()
-                    self.updateDevices(vehicle.get_vehicle_data())
+                    self.updateDevices(vehicle)
         return
 
     def onDisconnect(self, Connection):
@@ -272,24 +272,20 @@ class TeslaPlugin:
         logging.info("Devices created.")
         return True
     
-    def updateDevices(self,deviceStatus):
-        logging.debug("vehicle data from server: " + str(deviceStatus))
-        deviceId = deviceStatus['vin']
-        deviceName = deviceStatus['display_name']
-        if deviceStatus['gui_settings']['gui_distance_units'] == "km/hr":
-            odometer = get_km_from_miles(deviceStatus['vehicle_state']['odometer'])
-            battery_range = get_km_from_miles(deviceStatus['charge_state']['battery_range'])
-        else:
-            odometer = deviceStatus['vehicle_state']['odometer']
-            battery_range = deviceStatus['charge_state']['battery_range']
-        UpdateDeviceEx(deviceId, 1, int(odometer), "{:.1f}".format(odometer))  # odometer
-        UpdateDeviceEx(deviceId, 2, battery_range, "{:.1f}".format(battery_range))  # range
+    def updateDevices(self,vehicle):
+        vehicle.get_vehicle_data()
+        #deviceId = deviceStatus['vin']
+        #deviceName = deviceStatus['display_name']
+        deviceId = vehicle.vin
+        deviceName = vehicle.name
+        UpdateDeviceEx(deviceId, 1, vehicle.odometer, "{:.0f}".format(vehicle.odometer))  # odometer
+        UpdateDeviceEx(deviceId, 2, vehicle.battery_range, "{:.1f}".format(vehicle.battery_range))  # range
         #UpdateDeviceEx(deviceId, 3, deviceStatus['vehicle_state']['odometer'], str(deviceStatus['vehicle_state']['odometer']))  # charging
-        if (deviceStatus['charge_state']['battery_level']>0):    #avoid to set soc=0% 
-            UpdateDeviceEx(deviceId, 4, deviceStatus['charge_state']['battery_level'], str(deviceStatus['charge_state']['battery_level']))  # soc
+        if (vehicle.battery_level>0):    #avoid to set soc=0% 
+            UpdateDeviceEx(deviceId, 4, vehicle.battery_level, str(vehicle.battery_level))  # soc
 
         if 8 in Devices[deviceId].Units:
-            location_url = '<a target="_blank" rel="noopener noreferrer" ' + get_google_url(deviceStatus['drive_state']['active_route_latitude'], deviceStatus['drive_state']['active_route_longitude']) + deviceName + " - location</a> "
+            location_url = '<a target="_blank" rel="noopener noreferrer" ' + vehicle.get_google_url + deviceName + " - location</a> "
             UpdateDeviceEx(deviceId, 8, 0, location_url)  # range
 
         logging.info("Devices updated.")
