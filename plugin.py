@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.5.3">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.5.5">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -81,6 +81,7 @@ import random
 from datetime import datetime
 import TeslaDevice
 import TeslaVehicle
+from utils import *
 
 class TeslaPlugin:
 
@@ -89,7 +90,7 @@ class TeslaPlugin:
         Domoticz.Log('Plugin starting')
         if Parameters["Mode6"] == "1":
             Domoticz.Debugging(2)
-            DumpConfigToLog()
+            #DumpConfigToLog()
             Domoticz.Log('Debug mode')
             logging.basicConfig(format='%(asctime)s - %(levelname)-8s - %(filename)-18s - %(message)s', filename=self.log_filename,level=logging.DEBUG)
         else:
@@ -117,9 +118,10 @@ class TeslaPlugin:
         '''
         if "Maps icon" not in Images:
             Domoticz.Image("Maps icon.zip").Create()
+            Domoticz.Debug("Adding maps icon")
             
         if Parameters["Mode6"] == "1":
-            Domoticz.Debugging(1)
+            #Domoticz.Debugging(1)
             DumpConfigToLog()
         self.p_email = Parameters["Username"]
         self.p_abrp_token = Parameters["Mode1"]
@@ -229,7 +231,8 @@ class TeslaPlugin:
     def createVehicleDevices(self, device):
         deviceId = device.vin
         deviceName = device.name
-        if (1 not in Devices[deviceId].Units):
+        
+        if deviceId not in Devices or (1 not in Devices[deviceId].Units):
             Domoticz.Unit(Unit=1, Type=113, Subtype=0 , Switchtype=3 , Name = deviceName + " - odometer", DeviceID=deviceId).Create()
         if (2 not in Devices[deviceId].Units):
             Domoticz.Unit(Unit=2, Type=243, Subtype=31, Switchtype=0 , Name = deviceName + " - range", DeviceID=deviceId).Create()
@@ -239,6 +242,11 @@ class TeslaPlugin:
             Domoticz.Unit(Unit=4, TypeName="Percentage", Name = deviceName + " - Battery percentage ", Used=1, DeviceID=deviceId).Create()
         if (5 not in Devices[deviceId].Units):
             Domoticz.Unit(Unit=5, Type=243, Subtype=31, Name = deviceName + " - Remaining charge time",  Options = {'Custom':'1;hrs'}, DeviceID=deviceId).Create()
+        if (8 not in Devices[deviceId].Units) and "Maps icon" in Images:
+            Domoticz.Unit(Unit=8, Type=243, Subtype=19, Image=Images["Maps icon"].ID, Name="Location update needed", DeviceID=deviceId).Create()
+            Devices[deviceId].Units[8].sValue = "Location update needed"
+            Devices[deviceId].Units[8].Update()
+
 
         '''
             Domoticz.Unit(Name="Inverter temperature (SN: " + deviceId + ")", DeviceID=deviceId,
@@ -250,9 +258,6 @@ class TeslaPlugin:
             Domoticz.Device(Unit=6, Type=243, Subtype=31, Switchtype=0 , Name="status 12v").Create()
         if (7 not in Devices):
             Domoticz.Device(Unit=7, Type=244, Subtype=73, Switchtype=11, Name="tailgate").Create()
-        if (8 not in Devices):
-            Domoticz.Device(Unit=8, Type=243, Subtype=19, Image=Images["Maps icon"].ID, Name="distance from home: 0").Create()
-            Devices[8].Update(nValue=0, sValue="Location update needed")
         if (9 not in Devices):
             Domoticz.Device(Unit=9, Type=244, Subtype=73, Switchtype=0 , Name="force status update").Create()
         if (10 not in Devices):
@@ -275,6 +280,10 @@ class TeslaPlugin:
         #UpdateDeviceEx(deviceId, 3, deviceStatus['vehicle_state']['odometer'], str(deviceStatus['vehicle_state']['odometer']))  # charging
         if (deviceStatus['charge_state']['battery_level']>0):    #avoid to set soc=0% 
             UpdateDeviceEx(deviceId, 4, deviceStatus['charge_state']['battery_level'], str(deviceStatus['charge_state']['battery_level']))  # soc
+
+        if 8 in Devices[deviceId].Units:
+            location_url = '<a target="_blank" rel="noopener noreferrer" ' + get_google_url(deviceStatus['drive_state']['active_route_latitude'], deviceStatus['drive_state']['active_route_longitude']) + pluginName + " - location</a> "
+            UpdateDeviceEx(deviceId, 8, 0, location_url)  # range
 
         logging.info("Devices updated.")
         return True
@@ -318,13 +327,13 @@ def onHeartbeat():
 def DumpConfigToLog():
     for x in Parameters:
         if Parameters[x] != "":
-            Domoticz.Debug("'" + x + "':'" + str(Parameters[x]) + "'")
+            Domoticz.Debug("' - " + x + "':'" + str(Parameters[x]) + "'")
     #Domoticz.Debug("Settings count: " + str(len(Settings)))
     #for x in Settings:
     #    Domoticz.Debug("'" + x + "':'" + str(Settings[x]) + "'")
     Domoticz.Debug("Image count: " + str(len(Images)))
     for x in Images:
-        Domoticz.Debug("'" + x + "':'" + str(Images[x]) + "'")
+        Domoticz.Debug("' - " + x + "':'" + str(Images[x]) + "'")
     Domoticz.Debug("Device count: " + str(len(Devices)))
     for DeviceName in Devices:
         Device = Devices[DeviceName]
