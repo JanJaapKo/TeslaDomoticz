@@ -51,7 +51,10 @@ class teslaVehicle():
     @property
     def get_google_url(self):
         """returns URL to current google maps location"""
-        return 'href="http://www.google.com/maps/search/?api=1&query=' + str(self.__local_data["drive_state"]["active_route_latitude"]) + ',' + str(self.__local_data["drive_state"]["active_route_longitude"]) + '">'
+        if "active_route_latitude" in self.__local_data["drive_state"]:
+            return 'href="http://www.google.com/maps/search/?api=1&query=' + str(self.__local_data["drive_state"]["active_route_latitude"]) + ',' + str(self.__local_data["drive_state"]["active_route_longitude"]) + '">'
+        else:
+            return False
 
     @property
     def is_charging(self):
