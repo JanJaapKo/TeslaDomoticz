@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.5.9">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.6.0">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -220,7 +220,12 @@ class TeslaPlugin:
                 if self.lastHeartbeatTime == 0 or float((datetime.now() - vehicle.last_poll_time).total_seconds()) > (random.uniform(0.75,1.5)*(heartbeatmultiplier * current_interval)):
                     logging.info(" Updating vehicle " + vehicle.car_type + " VIN: " + vehicle.vin + " called '" + vehicle.name + "'")
                     self.lastHeartbeatTime = datetime.now()
-                    vehicle.vehicle.sync_wake_up()
+                    try:
+                        vehicle.vehicle.sync_wake_up()
+                    except ConnectionResetError:
+                        logging.error("connection error during vehicle sync")
+                        Domoticz.Error("connection error during vehicle sync")
+                        return
                     self.updateDevices(vehicle)
         return
 
@@ -281,15 +286,19 @@ class TeslaPlugin:
         vehicle.get_vehicle_data()
         deviceId = vehicle.vin
         deviceName = vehicle.name
-        UpdateDeviceEx(deviceId, 1, vehicle.odometer, "{:.0f}".format(vehicle.odometer))  # odometer
-        UpdateDeviceEx(deviceId, 2, vehicle.battery_range, "{:.1f}".format(vehicle.battery_range))  # range
+        if vehicle.odometer is not False:
+            UpdateDeviceEx(deviceId, 1, vehicle.odometer, "{:.0f}".format(vehicle.odometer))  # odometer
+        if vehicle.battery_range is not False:
+            UpdateDeviceEx(deviceId, 2, vehicle.battery_range, "{:.1f}".format(vehicle.battery_range))  # range
         UpdateDeviceEx(deviceId, 3, 0, str(vehicle.is_charging))  # charging
-        if (vehicle.battery_level>0):    #avoid to set soc=0% 
+        if vehicle.battery_level is not False and vehicle.battery_level>0:    #avoid to set soc=0% 
             UpdateDeviceEx(deviceId, 4, vehicle.battery_level, str(vehicle.battery_level))  # soc
 
         if 8 in Devices[deviceId].Units and vehicle.get_google_url is not False:
             location_url = '<a target="_blank" rel="noopener noreferrer" ' + vehicle.get_google_url + deviceName + " - location</a> "
-            UpdateDeviceEx(deviceId, 8, 0, location_url)  # range
+            UpdateDeviceEx(deviceId, 8, 0, location_url)  # location
+        else:
+            logging.info("no location data in vehicle data found") 
 
         logging.info("Devices updated.")
         return True

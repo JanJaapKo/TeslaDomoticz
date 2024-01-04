@@ -26,14 +26,20 @@ class teslaVehicle():
     
     @property
     def battery_level(self):
-        return self.__local_data["charge_state"]["battery_level"]
+        if 'battery_level' in self.__local_data['charge_state']:
+            return self.__local_data["charge_state"]["battery_level"]
+        else:
+            return False
 
     @property
     def battery_range(self):
-        if self.__metric:
-            return get_km_from_miles(self.__local_data['charge_state']['battery_range'])
+        if 'battery_range' in self.__local_data['charge_state']:
+            if self.__metric:
+                return get_km_from_miles(self.__local_data['charge_state']['battery_range'])
+            else:
+                return self.__local_data['charge_state']['battery_range']
         else:
-            return self.__local_data['charge_state']['battery_range']
+            return False
 
     @property
     def car_type(self):
@@ -84,19 +90,18 @@ class teslaVehicle():
 
     @property
     def odometer(self):
-        if self.__metric:
-            return round(get_km_from_miles(self.__local_data['vehicle_state']['odometer']))
+        if 'odometer' in self.__local_data['vehicle_state']:
+            if self.__metric:
+                return round(get_km_from_miles(self.__local_data['vehicle_state']['odometer']))
+            else:
+                return round(self.__local_data['vehicle_state']['odometer'])
         else:
-            return round(self.__local_data['vehicle_state']['odometer'])
-        
+            return False
+            
     @property 
     def vin(self):
         return self.__vin
         
-    def set_attribute(self, stringetje):
-        logging.debug("setting attribute: " + stringetje)
-        return
-
     def get_vehicle_data(self):
         self.__local_data = self.vehicle.get_vehicle_data()
         logging.debug("vehicle data from server: " + str(self.__local_data))
