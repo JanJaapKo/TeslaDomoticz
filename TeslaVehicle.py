@@ -74,7 +74,12 @@ class teslaVehicle():
     @property
     def is_driving(self):
         """returns True if the vehicle is driving. For now, only returns False"""
-        return False
+        driving_states = ["D","R"]
+        self.__driving_state = self.__local_data["drive_state"]["shift_state"]
+        if self.__driving_state in driving_states:
+            return True
+        else:
+            return False
 
     @property
     def last_poll_time(self):
@@ -95,6 +100,19 @@ class teslaVehicle():
                 return round(get_km_from_miles(self.__local_data['vehicle_state']['odometer']))
             else:
                 return round(self.__local_data['vehicle_state']['odometer'])
+        else:
+            return False
+
+    @property
+    def speed(self):
+        if 'speed' in self.__local_data['drive_state']:
+            if self.__local_data['drive_state']['speed'] is None:
+                self.__speed = 0
+            elif self.__metric:
+                self.__speed = str(round(get_km_from_miles(self.__local_data['drive_state']['speed'])))+" km/h"
+            else:
+                self.__speed = str(round(self.__local_data['drive_state']['speed']))+" m/h"
+            return self.__speed
         else:
             return False
             

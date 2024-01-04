@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.6.0">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.7.0">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -256,6 +256,8 @@ class TeslaPlugin:
             Domoticz.Unit(Unit=8, Type=243, Subtype=19, Image=Images["Maps icon"].ID, Name="Location update needed", DeviceID=deviceId).Create()
             Devices[deviceId].Units[8].sValue = "Location update needed"
             Devices[deviceId].Units[8].Update()
+        if (13 not in Devices[deviceId].Units):
+            Domoticz.Unit(Unit=13, Type=243, Subtype=31, Name= deviceName + " - current speed", DeviceID=deviceId).Create()
 
 
         '''
@@ -276,8 +278,6 @@ class TeslaPlugin:
             Domoticz.Device(Unit=11, Type=242, Subtype=1,                  Name="airco: off").Create()
         if (12 not in Devices):
             Domoticz.Device(Unit=12, Type=244, Subtype=73, Switchtype=11, Name="hood").Create()
-        if (13 not in Devices):
-            Domoticz.Device(Unit=13, Type=243, Subtype=31, Name="current speed").Create()
         '''
         logging.info("Devices created.")
         return True
@@ -299,6 +299,8 @@ class TeslaPlugin:
             UpdateDeviceEx(deviceId, 8, 0, location_url)  # location
         else:
             logging.info("no location data in vehicle data found") 
+        
+        UpdateDeviceEx(deviceId, 13, 0, str(vehicle.speed))  # current speed
 
         logging.info("Devices updated.")
         return True
