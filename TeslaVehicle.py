@@ -18,6 +18,7 @@ class teslaVehicle():
         self.__vin = vehicle_data["vin"]
         self.__name = vehicle_data['display_name'] 
         self.__cartype = TeslaDevice.VEHICLE_TYPE[vehicle_data["vehicle_config"]["car_type"]]
+        self.__charging_time = vehicle_data["charge_state"]["time_to_full_charge"]
         if vehicle_data['gui_settings']['gui_distance_units'] == "km/hr":
             self.__metric = True
         else:
@@ -50,6 +51,11 @@ class teslaVehicle():
         return self.__charging_state
 
     @property
+    def charging_time(self):
+        """time to full charge in hours"""
+        return self.__charging_time
+
+    @property
     def get_gps_coords(self):
         """returns latitude and longitude"""
         return self.__local_data["drive_state"]["active_route_latitude"], self.__local_data["drive_state"]["active_route_longitude"]
@@ -67,19 +73,19 @@ class teslaVehicle():
         """returns True when the vehicle is connected to a charger"""
         charging_states = ["Charging","Complete"]
         if self.__charging_state in charging_states:
-            return True
+            return StateMode(True)
         else:
-            return False
+            return StateMode(False)
 
     @property
     def is_driving(self):
-        """returns True if the vehicle is driving. For now, only returns False"""
+        """returns True if the vehicle is driving"""
         driving_states = ["D","R"]
         self.__driving_state = self.__local_data["drive_state"]["shift_state"]
         if self.__driving_state in driving_states:
-            return True
+            return StateMode(True)
         else:
-            return False
+            return StateMode(False)
 
     @property
     def last_poll_time(self):
@@ -126,3 +132,33 @@ class teslaVehicle():
         self.__read_data(self.__local_data)
         self.__last_poll_time = datetime.now()
         return self.__local_data
+
+class StateMode():
+    """Enum for state mode"""
+    OFF = 'OFF'
+    ON = 'ON'
+    _state = None
+    
+    def __init__(self, state):
+        """go from string to state object"""
+        if type(state) == bool:
+            if state == False: self._state = self.OFF
+            if state == True: self._state = self.ON
+        elif type(state) == str:
+            if state.upper() == 'OFF': self._state = self.OFF
+            if state.upper() == 'FALSE': self._state = self.OFF
+            if state.upper() == 'TRUE': self._state = self.ON
+            if state.upper() == 'ON': self._state = self.ON
+    
+    def __repr__(self):
+        return self._state
+        
+    @property
+    def state(self):
+        if self._state == self.OFF: return False
+        if self._state == self.ON: return True
+
+    @property
+    def stateNum(self):
+        if self._state == self.OFF: return 0
+        if self._state == self.ON: return 1

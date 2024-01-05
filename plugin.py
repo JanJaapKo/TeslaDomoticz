@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.7.0">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.7.1">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -81,6 +81,7 @@ import random
 from datetime import datetime
 import TeslaDevice
 import TeslaVehicle
+import requests, urllib3
 
 class TeslaPlugin:
 
@@ -147,7 +148,9 @@ class TeslaPlugin:
             self.heartbeatinterval = float(120)
         else:
             self.heartbeatinterval = float(self.heartbeatinterval) * 60
-        
+        if Parameters["Mode6"] == "1":
+            self.heartbeatinterval = self.heartbeatinterval / 2
+            
         TeslaServer = TeslaDevice.TeslaServer(self.p_email)
         
         initsuccess = TeslaServer.initialize()
@@ -207,9 +210,9 @@ class TeslaPlugin:
                 else:
                     heartbeatmultiplier = 2
                 current_interval = self.forcepollinterval
-                if vehicle.is_charging:
+                if vehicle.is_charging.state:
                     current_interval = self.charginginterval
-                if vehicle.is_driving:
+                if vehicle.is_driving.state:
                     current_interval = self.charginginterval
                 if vehicle.battery_level <10 and not vehicle.is_charging:
                     # at low battery level, reduce polling to 5 hrs interval
@@ -222,7 +225,7 @@ class TeslaPlugin:
                     self.lastHeartbeatTime = datetime.now()
                     try:
                         vehicle.vehicle.sync_wake_up()
-                    except ConnectionResetError:
+                    except (ConnectionResetError, urllib3.exceptions.ProtocolError, requests.exceptions.ConnectionError):
                         logging.error("connection error during vehicle sync")
                         Domoticz.Error("connection error during vehicle sync")
                         return
@@ -286,21 +289,32 @@ class TeslaPlugin:
         vehicle.get_vehicle_data()
         deviceId = vehicle.vin
         deviceName = vehicle.name
+
         if vehicle.odometer is not False:
             UpdateDeviceEx(deviceId, 1, vehicle.odometer, "{:.0f}".format(vehicle.odometer))  # odometer
+        else:
+            logging.warning("no odometer data in vehicle data found") 
+
         if vehicle.battery_range is not False:
             UpdateDeviceEx(deviceId, 2, vehicle.battery_range, "{:.1f}".format(vehicle.battery_range))  # range
-        UpdateDeviceEx(deviceId, 3, 0, str(vehicle.is_charging))  # charging
+        else:
+            logging.warning("no battery data in vehicle data found") 
+
+        UpdateDeviceEx(deviceId, 3, vehicle.is_charging.stateNum, str(vehicle.is_charging))  # charging
+
         if vehicle.battery_level is not False and vehicle.battery_level>0:    #avoid to set soc=0% 
             UpdateDeviceEx(deviceId, 4, vehicle.battery_level, str(vehicle.battery_level))  # soc
+        else:
+            logging.warning("no battery data in vehicle data found") 
 
         if 8 in Devices[deviceId].Units and vehicle.get_google_url is not False:
             location_url = '<a target="_blank" rel="noopener noreferrer" ' + vehicle.get_google_url + deviceName + " - location</a> "
             UpdateDeviceEx(deviceId, 8, 0, location_url)  # location
         else:
-            logging.info("no location data in vehicle data found") 
+            logging.warning("no location data in vehicle data found") 
         
         UpdateDeviceEx(deviceId, 13, 0, str(vehicle.speed))  # current speed
+        UpdateDeviceEx(deviceId, 5, 0, str(vehicle.charging_time))  # remaining charge time in hrs
 
         logging.info("Devices updated.")
         return True
