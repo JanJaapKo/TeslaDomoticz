@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.7.1">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.7.2">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -225,7 +225,7 @@ class TeslaPlugin:
                     self.lastHeartbeatTime = datetime.now()
                     try:
                         vehicle.vehicle.sync_wake_up()
-                    except (ConnectionResetError, urllib3.exceptions.ProtocolError, requests.exceptions.ConnectionError):
+                    except (ConnectionResetError, urllib3.exceptions.ProtocolError, requests.exceptions.ConnectionError, requests.exceptions.HTTPError):
                         logging.error("connection error during vehicle sync")
                         Domoticz.Error("connection error during vehicle sync")
                         return

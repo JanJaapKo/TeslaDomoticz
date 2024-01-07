@@ -58,12 +58,15 @@ class teslaVehicle():
     @property
     def get_gps_coords(self):
         """returns latitude and longitude"""
-        return self.__local_data["drive_state"]["active_route_latitude"], self.__local_data["drive_state"]["active_route_longitude"]
+        if "drive_state" in self.__local_data and "active_route_latitude" in self.__local_data["drive_state"]:
+            return self.__local_data["drive_state"]["active_route_latitude"], self.__local_data["drive_state"]["active_route_longitude"]
+        else:
+            return False
 
     @property
     def get_google_url(self):
         """returns URL to current google maps location"""
-        if "active_route_latitude" in self.__local_data["drive_state"]:
+        if "drive_state" in self.__local_data and "active_route_latitude" in self.__local_data["drive_state"]:
             return 'href="http://www.google.com/maps/search/?api=1&query=' + str(self.__local_data["drive_state"]["active_route_latitude"]) + ',' + str(self.__local_data["drive_state"]["active_route_longitude"]) + '">'
         else:
             return False
@@ -81,11 +84,11 @@ class teslaVehicle():
     def is_driving(self):
         """returns True if the vehicle is driving"""
         driving_states = ["D","R"]
-        self.__driving_state = self.__local_data["drive_state"]["shift_state"]
-        if self.__driving_state in driving_states:
-            return StateMode(True)
-        else:
-            return StateMode(False)
+        if "drive_state" in self.__local_data:
+            self.__driving_state = self.__local_data["drive_state"]["shift_state"]
+            if self.__driving_state in driving_states:
+                return StateMode(True)
+        return StateMode(False)
 
     @property
     def last_poll_time(self):
@@ -111,7 +114,7 @@ class teslaVehicle():
 
     @property
     def speed(self):
-        if 'speed' in self.__local_data['drive_state']:
+        if 'drive_state' in self.__local_data and 'speed' in self.__local_data['drive_state']:
             if self.__local_data['drive_state']['speed'] is None:
                 self.__speed = 0
             elif self.__metric:
