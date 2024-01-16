@@ -1,5 +1,7 @@
 # Tesla plugin for Domoticz
-This plugin integrates the [TeslaPy](https://github.com/tdorssers/TeslaPy) library into a Domoticz plugin.
+This plugin attempts to integrate the [tesla_api](https://github.com/fabianhu/tesla_api) library into a Domoticz plugin.
+
+UNDER CONSTRUCTION!!!!!
 
 This plugin is (at this moment) only tested with a 2023 Model Y. I assume other vehicles will work too. The library supports all Tesla products, but this plugin is (for now) only implementing vehicles.
 
@@ -13,6 +15,26 @@ Be aware that breaking changes may be introduced!!
 ## Installation
 
 ### Prerequisites
+
+pull the Tesla vehicle command:
+```
+git clone https://github.com/teslamotors/vehicle-command/
+cd vehicle-command/cmd/tesla-control/
+export PATH=$PATH:/usr/local/go/bin
+```
+Install the go language and dependencies:
+```
+sudo apt install golang
+go get ./...
+go build ./...
+go install ./...
+```
+
+build the tesla vehicle command
+```
+env GOOS=linux GOARCH=arm GOARM=7 go build .
+```
+
 The following steps need to be taken before plugin installation (generic for any plugin)
 1. Python version 3.9 or higher required & Domoticz version 2022.1 (due to extended plugin framework) or greater. 
 2. follow the Domoticz guide on [Using Python Plugins](https://www.domoticz.com/wiki/Using_Python_plugins).
