@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.7.2">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.7.3">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -157,8 +157,8 @@ class TeslaPlugin:
         if initsuccess:
             logging.info("Initialisation succeeded")
         else:
-            Domoticz.Error("Initialisation failed, run tesla_prepare first")
-            logging.error("Initialisation failed, run tesla_prepare first")
+            Domoticz.Error("Initialisation failed, check log file and/or run tesla_prepare first")
+            logging.error("Initialisation failed, check log file and/or  run tesla_prepare first")
             return False
 
         self.vehicle_list = TeslaServer.get_devices()

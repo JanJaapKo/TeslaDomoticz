@@ -20,9 +20,15 @@ class TeslaServer():
         cache_file = self._get_cachefile_location("cache.json")
         if cache_file == "":
             return False
-        self.tesla = teslapy.Tesla(self.email, cache_file = cache_file)
-        self.initialized = True
-        return True
+        major, minor, patch = teslapy.__version__.split('.')
+        print("Current version of TeslaPy is '" +teslapy.__version__+ "', needs to be upgraded to 2.9.0 or higher")
+        print("Current version of TeslaPy is: major '" +str(major)+ "',minor '" +str(minor)+ "', patch '" +str(patch)+ "', needs to be upgraded to 2.9.0 or higher")
+        if major == 2 and minor >8:
+            self.tesla = teslapy.Tesla(self.email, cache_file = cache_file)
+            self.initialized = True
+            return True
+        logging.error("Current version of TeslaPy is '" +teslapy.__version__+ "', needs to be upgraded to 2.9.0 or higher")
+        return False
         
     def get_devices(self):
         if self.initialized:
