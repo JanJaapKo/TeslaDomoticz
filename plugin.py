@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.8.0">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.8.1">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -52,7 +52,6 @@
         <param field="Username" label="Email-address"           width="200px" required="true"  default="john.doe@gmail.com" >
             <description>Email adress for your Tesla account</description>
         </param>
-        <param field="Mode1"    label="ABRP token"              width="300px" required="false" default="1234ab56-7cde-890f-a12b-3cde45678901"/>
 	    <param field="Mode3"    label="Intervals (minutes)" width="100px"  required="true" default="60;30;30">
             <description>Polling intervals: supply 3 values (separated by ';'): normal update; charging update; driving update</description>
         </param>
