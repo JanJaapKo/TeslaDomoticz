@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.7.3">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.8.0">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -166,6 +166,7 @@ class TeslaPlugin:
         logging.info("Found " + str(len(self.vehicle_list)) + " vehicles")
         logging.debug("list of vehicles from server: " + str(self.vehicle_list))
         for vehicle in self.vehicle_list:
+            vehicle.sync_wake_up()
             self.vehicle_dict[vehicle['vin']] = TeslaVehicle.teslaVehicle(vehicle)
             self.vehicle_dict[vehicle['vin']].vehicle.sync_wake_up()
             self.createVehicleDevices(self.vehicle_dict[vehicle['vin']])
@@ -225,9 +226,9 @@ class TeslaPlugin:
                     self.lastHeartbeatTime = datetime.now()
                     try:
                         vehicle.vehicle.sync_wake_up()
-                    except (ConnectionResetError, urllib3.exceptions.ProtocolError, requests.exceptions.ConnectionError, requests.exceptions.HTTPError):
-                        logging.error("connection error during vehicle sync")
-                        Domoticz.Error("connection error during vehicle sync")
+                    except (teslapy.VehicleError, ConnectionResetError, urllib3.exceptions.ProtocolError, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
+                        logging.error("connection error during vehicle sync: " + str(e))
+                        Domoticz.Error("connection error during vehicle sync: " + str(e))
                         return
                     self.updateDevices(vehicle)
         return
@@ -244,11 +245,17 @@ class TeslaPlugin:
     def createVehicleDevices(self, device):
         deviceId = device.vin
         deviceName = device.name
+        if device.is_metric:
+            dist_Options = {'Custom':'1;km'}
+            speed_Options = {'Custom':'1;km/h'}
+        else:
+            dist_Options = {'Custom':'1;mi'}
+            speed_Options = {'Custom':'1;mi/h'}
         
         if deviceId not in Devices or (1 not in Devices[deviceId].Units):
-            Domoticz.Unit(Unit=1, Type=113, Subtype=0 , Switchtype=3 , Name = deviceName + " - odometer", DeviceID=deviceId).Create()
+            Domoticz.Unit(Unit=1, Type=113, Subtype=0 , Switchtype=3 , Name = deviceName + " - odometer", Options = dist_Options, DeviceID=deviceId).Create()
         if (2 not in Devices[deviceId].Units):
-            Domoticz.Unit(Unit=2, Type=243, Subtype=31, Switchtype=0 , Name = deviceName + " - range", DeviceID=deviceId).Create()
+            Domoticz.Unit(Unit=2, Type=243, Subtype=31, Switchtype=0 , Name = deviceName + " - range", Options = dist_Options, DeviceID=deviceId).Create()
         if (3 not in Devices[deviceId].Units):
             Domoticz.Unit(Unit=3, Type=244, Subtype=73, Switchtype=0 , Name = deviceName + " - charging", DeviceID=deviceId).Create()
         if (4 not in Devices[deviceId].Units):
@@ -260,7 +267,7 @@ class TeslaPlugin:
             Devices[deviceId].Units[8].sValue = "Location update needed"
             Devices[deviceId].Units[8].Update()
         if (13 not in Devices[deviceId].Units):
-            Domoticz.Unit(Unit=13, Type=243, Subtype=31, Name= deviceName + " - current speed", DeviceID=deviceId).Create()
+            Domoticz.Unit(Unit=13, Type=243, Subtype=31, Name= deviceName + " - current speed", Options = speed_Options, DeviceID=deviceId).Create()
 
 
         '''

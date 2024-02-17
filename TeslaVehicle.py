@@ -56,8 +56,18 @@ class teslaVehicle():
         return self.__charging_time
 
     @property
-    def get_gps_coords(self):
-        """returns latitude and longitude"""
+    def get_current_gps_coords(self):
+        """returns latitude and longitude of actual location"""
+        if "drive_state" in self.__local_data and "latitude" in self.__local_data["drive_state"]:
+            self.__current_latitude = self.__local_data["drive_state"]["latitude"]
+            self.__current_longitude = self.__local_data["drive_state"]["longitude"]
+            return True
+        else:
+            return False
+
+    @property
+    def get_target_gps_coords(self):
+        """returns latitude and longitude of current destination"""
         if "drive_state" in self.__local_data and "active_route_latitude" in self.__local_data["drive_state"]:
             return self.__local_data["drive_state"]["active_route_latitude"], self.__local_data["drive_state"]["active_route_longitude"]
         else:
@@ -66,8 +76,9 @@ class teslaVehicle():
     @property
     def get_google_url(self):
         """returns URL to current google maps location"""
-        if "drive_state" in self.__local_data and "active_route_latitude" in self.__local_data["drive_state"]:
-            return 'href="http://www.google.com/maps/search/?api=1&query=' + str(self.__local_data["drive_state"]["active_route_latitude"]) + ',' + str(self.__local_data["drive_state"]["active_route_longitude"]) + '">'
+        #if "drive_state" in self.__local_data and "active_route_latitude" in self.__local_data["drive_state"]:
+        if self.get_current_gps_coords:
+            return 'href="http://www.google.com/maps/search/?api=1&query=' + str(self.__current_latitude) + ',' + str(self.__current_longitude) + '">'
         else:
             return False
 
@@ -90,6 +101,10 @@ class teslaVehicle():
                 return StateMode(True)
         return StateMode(False)
 
+    @property
+    def is_metric(self):
+        return self.__metric
+    
     @property
     def last_poll_time(self):
         return self.__last_poll_time
