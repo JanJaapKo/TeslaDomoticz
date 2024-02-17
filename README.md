@@ -6,7 +6,7 @@ This plugin is (at this moment) only tested with a 2023 Model Y. I assume other 
 Be aware that the polling of the car will cause the battery to be drained!
 
 ## Current status:
-Basic version working, retreives only battery status, odometer and range.
+Basic version working, retreives only several vhicle statusses. It is at this moment not possible to send commands to the vehicle, this is still work in progress......
 
 Be aware that breaking changes may be introduced!!
 
@@ -30,7 +30,7 @@ sudo python3 -m pip install TeslaPy
  ```git clone https://github.com/JanJaapKo/TeslaDomoticz```
 3. Restart Domoticz:
  ```sudo systemctl restart domoticz```
-4. Edit the file tesla_prepare.py to hold the email adress registered to your Tesla account (where it now has Elon's mail adress......)
+4. Edit the file ```tesla_prepare.py``` to hold the email adress registered to your Tesla account (where it now has Elon's mail adress......)
 5. run tesla_prepare to authenticate:
  ```
 cd TeslaDomoticz
