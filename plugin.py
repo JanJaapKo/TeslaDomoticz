@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.8.1">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.9.1">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -80,6 +80,7 @@ import random
 from datetime import datetime
 import TeslaDevice
 import TeslaVehicle
+import teslapy
 import requests, urllib3
 
 class TeslaPlugin:
@@ -201,7 +202,7 @@ class TeslaPlugin:
             manualForcePoll = False
             if manualForcePoll:
                 self.lastHeartbeatTime = 0
-                UpdateDeviceEx(9, 0, 0)
+                UpdateDeviceEx(9, 0, 0) #reset manual poll request
             for vin, vehicle in self.vehicle_dict.items():
                 # at night (between 2259 and 0700) only one in 2 polls is done
                 # unless charging or driving
@@ -267,6 +268,10 @@ class TeslaPlugin:
             Devices[deviceId].Units[8].Update()
         if (13 not in Devices[deviceId].Units):
             Domoticz.Unit(Unit=13, Type=243, Subtype=31, Name= deviceName + " - current speed", Options = speed_Options, DeviceID=deviceId).Create()
+        if (11 not in Devices[deviceId].Units):
+            Domoticz.Unit(Unit=11, Type=243, Subtype=29, Name= deviceName + " - charge power", Options={'EnergyMeterMode': '1' }, DeviceID=deviceId).Create()
+        if (10 not in Devices[deviceId].Units):
+            Domoticz.Unit(Unit=10, Type=243, Subtype=23, Name= deviceName + " - charge current", DeviceID=deviceId).Create()
 
 
         '''
@@ -307,7 +312,11 @@ class TeslaPlugin:
             logging.warning("no battery data in vehicle data found") 
 
         UpdateDeviceEx(deviceId, 3, vehicle.is_charging.stateNum, str(vehicle.is_charging))  # charging
-
+        UpdateDeviceEx(deviceId, 11, 0, str(vehicle.charging_power*1000)+";0", True)  # charging power, convert from kW to W
+        UpdateDeviceEx(deviceId, 10, vehicle.charging_current, str(vehicle.charging_current))  # charging current
+        
+        logging.debug("power data after update: Unit data: '" + str(Devices[deviceId].Units[11]) + "'")
+        
         if vehicle.battery_level is not False and vehicle.battery_level>0:    #avoid to set soc=0% 
             UpdateDeviceEx(deviceId, 4, vehicle.battery_level, str(vehicle.battery_level))  # soc
         else:
