@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.9.1">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.9.2">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -88,6 +88,7 @@ class TeslaPlugin:
     def onStart(self):
         self.log_filename = "tesla_"+Parameters["Name"]+".log"
         Domoticz.Log('Plugin starting')
+        self.enabled = False
         if Parameters["Mode6"] == "1":
             Domoticz.Debugging(2)
             #DumpConfigToLog()
@@ -132,7 +133,6 @@ class TeslaPlugin:
 
         self.p_email = Parameters["Username"]
         self.p_abrp_token = Parameters["Mode1"]
-        #self.p_abrp_carmodel = Parameters["Mode2"] # TODO"filter this info from Tesla API
         self.p_homelocation = Settings["Location"]
         if self.p_homelocation is None:
             Domoticz.Log("Unable to parse coordinates")
@@ -166,7 +166,12 @@ class TeslaPlugin:
         logging.info("Found " + str(len(self.vehicle_list)) + " vehicles")
         logging.debug("list of vehicles from server: " + str(self.vehicle_list))
         for vehicle in self.vehicle_list:
-            vehicle.sync_wake_up()
+            try:
+                vehicle.sync_wake_up()
+            except requests.exceptions.ReadTimeoutError as theError:
+                Domoticz.Error("error during data request: "+str(theError.response.status_code)+": "+theError.response.text)
+                logging.error("error during data request: "+str(theError.response.status_code)+": "+theError.response.text)
+                return False
             self.vehicle_dict[vehicle['vin']] = TeslaVehicle.teslaVehicle(vehicle)
             self.vehicle_dict[vehicle['vin']].vehicle.sync_wake_up()
             self.createVehicleDevices(self.vehicle_dict[vehicle['vin']])
@@ -176,6 +181,7 @@ class TeslaPlugin:
 
         logging.debug("onStart: vehicle dict: "+str(self.vehicle_dict))
         Domoticz.Log('Plugin starting up done')
+        self.enabled = True
         return True
 
     def onConnect(self, Connection, Status, Description):
@@ -193,7 +199,7 @@ class TeslaPlugin:
 
     def onHeartbeat(self):
         self.runCounter = self.runCounter - 1
-        if self.runCounter <= 0:
+        if self.runCounter <= 0 and self.enabled == True:
             logging.debug("Polling unit")
             self.runCounter = 10 #check for connection status not every heartbeat         
 
@@ -297,7 +303,8 @@ class TeslaPlugin:
         return True
     
     def updateDevices(self,vehicle):
-        vehicle.get_vehicle_data()
+        if not vehicle.get_vehicle_data():
+            Domoticz.Error("Error during data retreival, check log file")
         deviceId = vehicle.vin
         deviceName = vehicle.name
 

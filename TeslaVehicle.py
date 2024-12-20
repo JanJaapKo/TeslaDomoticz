@@ -1,6 +1,7 @@
 import logging
 import teslapy
 import TeslaDevice
+import requests
 from datetime import datetime
 from utils import *
 
@@ -19,6 +20,8 @@ class teslaVehicle():
         self.__name = vehicle_data['display_name'] 
         self.__cartype = TeslaDevice.VEHICLE_TYPE[vehicle_data["vehicle_config"]["car_type"]]
         self.__charging_time = vehicle_data["charge_state"]["time_to_full_charge"]
+        self.__charging_power = vehicle_data["charge_state"]["charger_power"]
+        self.__charging_current = vehicle_data["charge_state"]["charger_actual_current"]
         if vehicle_data['gui_settings']['gui_distance_units'] == "km/hr":
             self.__metric = True
         else:
@@ -54,6 +57,16 @@ class teslaVehicle():
     def charging_time(self):
         """time to full charge in hours"""
         return self.__charging_time
+
+    @property
+    def charging_current(self):
+        """current charing current [A]"""
+        return self.__charging_current
+
+    @property
+    def charging_power(self):
+        """current charing current [A]"""
+        return self.__charging_power
 
     @property
     def get_current_gps_coords(self):
@@ -145,8 +158,12 @@ class teslaVehicle():
         return self.__vin
         
     def get_vehicle_data(self):
-        self.__local_data = self.vehicle.get_vehicle_data()
-        logging.debug("vehicle data from server: " + str(self.__local_data))
+        try:
+            self.__local_data = self.vehicle.get_vehicle_data()
+            logging.debug("vehicle data from server: " + str(self.__local_data))
+        except requests.exceptions.HTTPError as theError:
+            logging.error("error during data request: "+str(theError.response.status_code)+": "+theError.response.text)
+            return False
         self.__read_data(self.__local_data)
         self.__last_poll_time = datetime.now()
         return self.__local_data
