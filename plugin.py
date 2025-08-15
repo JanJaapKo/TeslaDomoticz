@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.9.2">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.9.3">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -87,7 +87,7 @@ class TeslaPlugin:
 
     def onStart(self):
         self.log_filename = "tesla_"+Parameters["Name"]+".log"
-        Domoticz.Log('Plugin starting')
+        Domoticz.Log("Plugin starting, logging to '" + self.log_filename +"'")
         self.enabled = False
         if Parameters["Mode6"] == "1":
             Domoticz.Debugging(2)
@@ -314,7 +314,7 @@ class TeslaPlugin:
             logging.warning("no odometer data in vehicle data found") 
 
         if vehicle.battery_range is not False:
-            UpdateDeviceEx(deviceId, 2, vehicle.battery_range, "{:.1f}".format(vehicle.battery_range))  # range
+            UpdateDeviceEx(deviceId, 2, int(vehicle.battery_range), "{:.1f}".format(vehicle.battery_range))  # range
         else:
             logging.warning("no battery data in vehicle data found") 
 
