@@ -20,7 +20,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 """
-<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.9.3">
+<plugin key="TeslaDomoticz" name="Tesla for Domoticz plugin" author="Jan-Jaap Kostelijk" version="0.10.0">
     <description>
         <h2>Tesla Domoticz plugin</h2>
         A plugin for Tesla EV's . Use at own risk!
@@ -29,16 +29,6 @@
         <br/>
         Polling your car means draining the battery and worst case, an empty battery.
         <br/><br/>
-        <h3>ABRP (optional) </h3>
-        This plugin will send current state of charge (SoC) and local temperature to your ABRP account to have the most accurate route planning, even on the road. <br/>
-        Your ABRP token can be found here: Settings - Car model, 
-	Click on settings next to you car, 
-	click on settings (arrow down) on the page of your car. 
-	Scroll down a bit and click on Show live data instructions and next on the blue "Link Torque"-box.
-        Click Next, Next, Next and see: "Set User Email Address to the following token". Click on the blue "Copy" box next to the token.
-        <br/>
-        If you omit your ABRP token, then no information will be sent to ABRP.
-        <br/>
         <h3>Battery</h3>
         If you poll the car all the time when  not charging, your battery will be drained.
         There is no way for the plugin to determine if you start driving or charging other than polling the car. To save draining and yet to enable polling this mechanism is implemented:
@@ -132,7 +122,6 @@ class TeslaPlugin:
             return False
 
         self.p_email = Parameters["Username"]
-        self.p_abrp_token = Parameters["Mode1"]
         self.p_homelocation = Settings["Location"]
         if self.p_homelocation is None:
             Domoticz.Log("Unable to parse coordinates")
@@ -191,7 +180,8 @@ class TeslaPlugin:
         return True
 
     def onCommand(self, Device, Unit, Command, Level, Color):
-        logging.info("devcie %s, unit %s, Command %s Level %s Color %s",Device, Unit, Command, Level, Color)
+        if Unit==9: UpdateDeviceEx(Device, 9, 0 if Command=="Off" else 1, 0 if Command=="Off" else 1)
+        logging.info("device %s, unit %s, Command %s Level %s Color %s",Device, Unit, Command, Level, Color)
         return True
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
@@ -204,12 +194,13 @@ class TeslaPlugin:
             self.runCounter = 10 #check for connection status not every heartbeat         
 
             #try:
-            #manualForcePoll = (Devices[9].nValue == 1)
-            manualForcePoll = False
-            if manualForcePoll:
-                self.lastHeartbeatTime = 0
-                UpdateDeviceEx(9, 0, 0) #reset manual poll request
+            #manualForcePoll = False
             for vin, vehicle in self.vehicle_dict.items():
+                manualForcePoll = (Devices[vehicle.vin].Units[9].nValue == 1)
+                if manualForcePoll:
+                    self.lastHeartbeatTime = 0
+                    UpdateDeviceEx(vehicle.vin, 9, 0, 0) #reset manual poll request
+                    logging.debug("Manual force poll")
                 # at night (between 2259 and 0700) only one in 2 polls is done
                 # unless charging or driving
                 if 7 <= datetime.now().hour <= 22 or vehicle.is_charging or vehicle.is_driving:
@@ -272,6 +263,8 @@ class TeslaPlugin:
             Domoticz.Unit(Unit=8, Type=243, Subtype=19, Image=Images["Maps icon"].ID, Name="Location update needed", DeviceID=deviceId).Create()
             Devices[deviceId].Units[8].sValue = "Location update needed"
             Devices[deviceId].Units[8].Update()
+        if (9 not in Devices[deviceId].Units):
+            Domoticz.Unit(Unit=9, Type=244, Subtype=73, Switchtype=0 , Name= deviceName + " - force status update", DeviceID=deviceId).Create()
         if (13 not in Devices[deviceId].Units):
             Domoticz.Unit(Unit=13, Type=243, Subtype=31, Name= deviceName + " - current speed", Options = speed_Options, DeviceID=deviceId).Create()
         if (11 not in Devices[deviceId].Units):
