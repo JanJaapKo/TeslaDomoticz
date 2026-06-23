@@ -21,7 +21,13 @@ The following steps need to be taken before plugin installation (generic for any
 sudo apt-get update
 sudo apt-get install python3 libpython3-dev libpython3.7-dev
 sudo apt-get install python3-requests
-sudo python3 -m pip install TeslaPy
+```
+Create the virtual environment
+```
+cd domoticz/pluginsTeslaDomoticz
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install TeslaPy
 ```
 ### install the plugin
 1. Go in your Domoticz directory using a command line and open the plugins directory:
