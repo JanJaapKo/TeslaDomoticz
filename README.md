@@ -22,7 +22,13 @@ sudo apt-get update
 sudo apt-get install python3 libpython3-dev libpython3.7-dev
 sudo apt-get install python3-requests
 ```
-Create the virtual environment
+Install TeslaPy to Domoticz venv virtual environment 
+```
+source <domoticz venv dir>/bin/activate
+python3 -m pip install TeslaPy
+```
+
+Create virtual environment to run the preparation step
 ```
 cd domoticz/pluginsTeslaDomoticz
 python3 -m venv .venv
